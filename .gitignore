@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+env/
+venv/
+*.safetensors
+*.bin
+*.ckpt
+*.pth
+outputs/
+training_log_*.txt
+.cache/
+.DS_Store
+
+# Don't ignore the submodule itself
+!ltx_video/
