@@ -1,0 +1,182 @@
+======================================================================
+LTX-VIDEO PIPELINE - DENOISING WITH X0 PREDICTIONS
+Logging to: training_log_20251222_065015.txt
+======================================================================
+
+Downloading ltxv-13b-0.9.8-dev-fp8.safetensors...
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|##########| 2/2 [00:00<00:00, 54.10it/s]
+✅ Pipeline loaded!
+
+Timesteps: 20 steps [1.0000 → 0.1830]
+
+⚠ ../prompt.txt not found, using default prompt
+Prompt: 'A ball bouncing up a staircase, hitting each step sequentially.'
+prompt_embeds: torch.Size([1, 256, 4096])
+
+Latent shape: (1, 128, 11, 16, 24)
+
+  Unfreezing: proj_out.weight - torch.Size([128, 4096])
+  Unfreezing: proj_out.bias - torch.Size([128])
+
+✅ Total unfrozen parameters: 2
+   Unfrozen params count: 524,416
+
+/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/functional.py:505: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at /pytorch/aten/src/ATen/native/TensorShape.cpp:4317.)
+  return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
+📊 Tracking 2 unfrozen parameters
+
+Step 01/20 | t=1.0000Loading DINOv2 model...
+Using cache found in /home/ubuntu/.cache/torch/hub/facebookresearch_dinov2_main
+/home/ubuntu/.cache/torch/hub/facebookresearch_dinov2_main/dinov2/layers/swiglu_ffn.py:51: UserWarning: xFormers is not available (SwiGLU)
+  warnings.warn("xFormers is not available (SwiGLU)")
+/home/ubuntu/.cache/torch/hub/facebookresearch_dinov2_main/dinov2/layers/attention.py:33: UserWarning: xFormers is not available (Attention)
+  warnings.warn("xFormers is not available (Attention)")
+/home/ubuntu/.cache/torch/hub/facebookresearch_dinov2_main/dinov2/layers/block.py:40: UserWarning: xFormers is not available (Block)
+  warnings.warn("xFormers is not available (Block)")
+✅ DINOv2 model loaded!
+
+Advantages:
+  Rollout 0: reward=0.7866, advantage=-0.9332
+  Rollout 1: reward=0.7903, advantage=0.9640
+  Rollout 2: reward=0.7883, advantage=-0.0308
+  ✅ Weights updated! grad_norm=0.000000, weight_Δ=0.000095
+Step 02/20 | t=0.9975
+Advantages:
+  Rollout 0: reward=0.7705, advantage=-0.4795
+  Rollout 1: reward=0.7753, advantage=1.1124
+  Rollout 2: reward=0.7701, advantage=-0.6330
+  ✅ Weights updated! grad_norm=0.000001, weight_Δ=0.000095
+Step 03/20 | t=0.9950
+Advantages:
+  Rollout 0: reward=0.7519, advantage=-0.4887
+  Rollout 1: reward=0.7540, advantage=1.0680
+  Rollout 2: reward=0.7518, advantage=-0.5793
+  ✅ Weights updated! grad_norm=0.000002, weight_Δ=0.000094
+Step 04/20 | t=0.9925
+Advantages:
+  Rollout 0: reward=0.7563, advantage=-0.6585
+  Rollout 1: reward=0.7568, advantage=0.7512
+  Rollout 2: reward=0.7565, advantage=-0.0928
+  ✅ Weights updated! grad_norm=0.000004, weight_Δ=0.000094
+Step 05/20 | t=0.9900
+Advantages:
+  Rollout 0: reward=0.7544, advantage=-0.8574
+  Rollout 1: reward=0.7552, advantage=-0.0938
+  Rollout 2: reward=0.7563, advantage=0.9510
+  ✅ Weights updated! grad_norm=0.000003, weight_Δ=0.000093
+Step 06/20 | t=0.9875
+Advantages:
+  Rollout 0: reward=0.7491, advantage=0.1057
+  Rollout 1: reward=0.7486, advantage=-0.8550
+  Rollout 2: reward=0.7495, advantage=0.7492
+  ✅ Weights updated! grad_norm=0.000003, weight_Δ=0.000093
+Step 07/20 | t=0.9850
+Advantages:
+  Rollout 0: reward=0.7481, advantage=-0.9756
+  Rollout 1: reward=0.7578, advantage=0.9840
+  Rollout 2: reward=0.7529, advantage=-0.0084
+  ✅ Weights updated! grad_norm=0.000000, weight_Δ=0.000092
+Step 08/20 | t=0.9825
+Advantages:
+  Rollout 0: reward=0.7610, advantage=0.9258
+  Rollout 1: reward=0.7565, advantage=0.1039
+  Rollout 2: reward=0.7502, advantage=-1.0298
+  ✅ Weights updated! grad_norm=0.000000, weight_Δ=0.000091
+Step 09/20 | t=0.9800
+Advantages:
+  Rollout 0: reward=0.7336, advantage=-1.0901
+  Rollout 1: reward=0.7448, advantage=0.8188
+  Rollout 2: reward=0.7416, advantage=0.2712
+  ✅ Weights updated! grad_norm=0.000001, weight_Δ=0.000090
+Step 10/20 | t=0.9775
+Advantages:
+  Rollout 0: reward=0.7366, advantage=0.0177
+  Rollout 1: reward=0.7351, advantage=-0.9439
+  Rollout 2: reward=0.7380, advantage=0.9261
+  ✅ Weights updated! grad_norm=0.000003, weight_Δ=0.000090
+Step 11/20 | t=0.9750
+Advantages:
+  Rollout 0: reward=0.7382, advantage=1.1100
+  Rollout 1: reward=0.7336, advantage=-0.4567
+  Rollout 2: reward=0.7330, advantage=-0.6533
+  ✅ Weights updated! grad_norm=0.000000, weight_Δ=0.000089
+Step 12/20 | t=0.9630
+Advantages:
+  Rollout 0: reward=0.7216, advantage=-1.0173
+  Rollout 1: reward=0.7244, advantage=0.1300
+  Rollout 2: reward=0.7263, advantage=0.8871
+  ✅ Weights updated! grad_norm=0.000004, weight_Δ=0.000088
+Step 13/20 | t=0.9320
+Advantages:
+  Rollout 0: reward=0.7225, advantage=0.2603
+  Rollout 1: reward=0.7212, advantage=-1.0075
+  Rollout 2: reward=0.7230, advantage=0.7472
+  ✅ Weights updated! grad_norm=0.000000, weight_Δ=0.000088
+Step 14/20 | t=0.8820
+Advantages:
+  Rollout 0: reward=0.7070, advantage=-1.0559
+  Rollout 1: reward=0.7088, advantage=0.4640
+  Rollout 2: reward=0.7089, advantage=0.5919
+  ✅ Weights updated! grad_norm=0.000000, weight_Δ=0.000087
+Step 15/20 | t=0.8130
+Advantages:
+  Rollout 0: reward=0.7090, advantage=-1.0675
+  Rollout 1: reward=0.7112, advantage=0.5529
+  Rollout 2: reward=0.7112, advantage=0.5146
+  ✅ Weights updated! grad_norm=0.000000, weight_Δ=0.000087
+Step 16/20 | t=0.7250
+Advantages:
+  Rollout 0: reward=0.7169, advantage=-0.7746
+  Rollout 1: reward=0.7226, advantage=1.0848
+  Rollout 2: reward=0.7183, advantage=-0.3103
+  ✅ Weights updated! grad_norm=0.000005, weight_Δ=0.000087
+Step 17/20 | t=0.6180
+Advantages:
+  Rollout 0: reward=0.7182, advantage=0.6634
+  Rollout 1: reward=0.7178, advantage=0.4160
+  Rollout 2: reward=0.7152, advantage=-1.0794
+  ✅ Weights updated! grad_norm=0.000002, weight_Δ=0.000086
+Step 18/20 | t=0.4920
+Advantages:
+  Rollout 0: reward=0.7209, advantage=0.3905
+  Rollout 1: reward=0.7199, advantage=-0.9956
+  Rollout 2: reward=0.7211, advantage=0.6048
+  ✅ Weights updated! grad_norm=0.000014, weight_Δ=0.000085
+Step 19/20 | t=0.3470
+Advantages:
+  Rollout 0: reward=0.7205, advantage=0.9027
+  Rollout 1: reward=0.7198, advantage=-0.0785
+  Rollout 2: reward=0.7192, advantage=-0.8242
+  ✅ Weights updated! grad_norm=0.000000, weight_Δ=0.000085
+Step 20/20 | t=0.1830
+Advantages:
+  Rollout 0: reward=0.7150, advantage=0.1869
+  Rollout 1: reward=0.7147, advantage=-0.7326
+  Rollout 2: reward=0.7151, advantage=0.5455
+  ✅ Weights updated! grad_norm=0.000014, weight_Δ=0.000084
+
+======================================================================
+TRAINING COMPLETE - WEIGHT CHANGE SUMMARY
+======================================================================
+  proj_out.weight                                    Δ=0.00164795
+  proj_out.bias                                      Δ=0.00189972
+
+  Average total weight change: 0.00177383
+======================================================================
+
+
+======================================================================
+GENERATING FINAL VIDEO WITH UPDATED WEIGHTS
+======================================================================
+
+Decoding final video...
+  [DEBUG] Video tensor stats before transpose:
+    Shape: (81, 3, 512, 768)
+    Min: 0.0000, Max: 1.0000, Mean: 0.5575
+    Per-channel: R=0.3639, G=0.6191, B=0.6896
+✅ Final video saved to: outputs/final_video_20251222_065015.mp4
+   Resolution: 768×512
+   Frames: 81
+   Duration: 5.06s
+
+✅ Training complete! Log saved to: training_log_20251222_065015.txt

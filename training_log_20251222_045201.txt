@@ -1,0 +1,72 @@
+======================================================================
+LTX-VIDEO PIPELINE - DENOISING WITH X0 PREDICTIONS
+Logging to: training_log_20251222_045201.txt
+======================================================================
+
+Downloading ltxv-2b-0.9.8-distilled.safetensors...
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|##########| 2/2 [00:00<00:00, 54.16it/s]
+✅ Pipeline loaded!
+
+Timesteps: 20 steps [1.0000 → 0.1830]
+
+Prompt: 'A ball bouncing up a staircase, hitting each step sequentially.'
+prompt_embeds: torch.Size([1, 256, 4096])
+
+Latent shape: (1, 128, 21, 16, 24)
+
+  Unfreezing: proj_out.weight - torch.Size([128, 2048])
+  Unfreezing: proj_out.bias - torch.Size([128])
+
+✅ Total unfrozen parameters: 2
+   Unfrozen params count: 262,272
+
+/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/functional.py:505: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at /pytorch/aten/src/ATen/native/TensorShape.cpp:4317.)
+  return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
+📊 Tracking 2 unfrozen parameters
+
+Step 01/20 | t=1.0000Traceback (most recent call last):
+  File "/lambda/nfs/angel-research/full_sequence_grpo/pipeline.py", line 230, in <module>
+    video_x0 = decode_x0_to_video(
+  File "/lambda/nfs/angel-research/full_sequence_grpo/helper.py", line 64, in decode_x0_to_video
+    video = vae_decode(
+  File "/lambda/nfs/angel-research/full_sequence_grpo/ltx_video/ltx_video/models/autoencoders/vae_encode.py", line 123, in vae_decode
+    images = _run_decoder(
+  File "/lambda/nfs/angel-research/full_sequence_grpo/ltx_video/ltx_video/models/autoencoders/vae_encode.py", line 148, in _run_decoder
+    image = vae.decode(
+  File "/lambda/nfs/angel-research/full_sequence_grpo/ltx_video/ltx_video/models/autoencoders/vae.py", line 344, in decode
+    else self._decode(z, target_shape=target_shape, timestep=timestep)
+  File "/lambda/nfs/angel-research/full_sequence_grpo/ltx_video/ltx_video/models/autoencoders/vae.py", line 301, in _decode
+    dec = self.decoder(z, target_shape=target_shape, timestep=timestep)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/lambda/nfs/angel-research/full_sequence_grpo/ltx_video/ltx_video/models/autoencoders/causal_video_autoencoder.py", line 763, in forward
+    sample = checkpoint_fn(up_block)(
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/lambda/nfs/angel-research/full_sequence_grpo/ltx_video/ltx_video/models/autoencoders/causal_video_autoencoder.py", line 967, in forward
+    hidden_states = resnet(
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/lambda/nfs/angel-research/full_sequence_grpo/ltx_video/ltx_video/models/autoencoders/causal_video_autoencoder.py", line 1225, in forward
+    hidden_states = self.conv1(hidden_states, causal=causal)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/lambda/nfs/angel-research/full_sequence_grpo/ltx_video/ltx_video/models/autoencoders/causal_conv3d.py", line 58, in forward
+    x = self.conv(x)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/conv.py", line 717, in forward
+    return self._conv_forward(input, self.weight, self.bias)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/conv.py", line 712, in _conv_forward
+    return F.conv3d(
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 25.47 GiB. GPU 0 has a total capacity of 79.19 GiB of which 13.41 GiB is free. Process 42382 has 39.82 GiB memory in use. Including non-PyTorch memory, this process has 25.94 GiB memory in use. Of the allocated memory 20.72 GiB is allocated by PyTorch, and 4.64 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)

@@ -1,0 +1,28 @@
+======================================================================
+LTX-VIDEO PIPELINE - DENOISING WITH X0 PREDICTIONS
+Logging to: training_log_20251222_005719.txt
+======================================================================
+
+Downloading ltxv-2b-0.9.8-distilled.safetensors...
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|##########| 2/2 [00:00<00:00, 53.91it/s]
+Traceback (most recent call last):
+  File "/lambda/nfs/angel-research/full_sequence_grpo/pipeline.py", line 61, in <module>
+    pipeline = create_ltx_video_pipeline(
+  File "/lambda/nfs/angel-research/full_sequence_grpo/ltx_video/ltx_video/inference.py", line 249, in create_ltx_video_pipeline
+    text_encoder = text_encoder.to(device)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/transformers/modeling_utils.py", line 3698, in to
+    return super().to(*args, **kwargs)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1371, in to
+    return self._apply(convert)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 930, in _apply
+    module._apply(fn)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 930, in _apply
+    module._apply(fn)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 930, in _apply
+    module._apply(fn)
+  [Previous line repeated 4 more times]
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 957, in _apply
+    param_applied = fn(param)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1357, in convert
+    return t.to(
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 64.00 MiB. GPU 0 has a total capacity of 79.19 GiB of which 34.94 MiB is free. Process 18705 has 67.26 GiB memory in use. Including non-PyTorch memory, this process has 11.88 GiB memory in use. Of the allocated memory 10.97 GiB is allocated by PyTorch, and 486.13 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)

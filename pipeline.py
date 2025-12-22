@@ -48,7 +48,7 @@ print("="*70 + "\n")
 # ============================================================================
 # Load Pipeline
 # ============================================================================
-config_path = "configs/ltxv-2b-0.9.8-distilled.yaml"
+config_path = "configs/ltxv-13b-0.9.8-dev-fp8.yaml"
 cfg = load_pipeline_config(config_path)
 ckpt_name = cfg["checkpoint_path"]   # load the checkpoint name from the config file
 
@@ -80,8 +80,23 @@ scheduler.set_timesteps(20, device="cuda")
 timesteps = scheduler.timesteps
 print(f"Timesteps: {len(timesteps)} steps [{timesteps[0]:.4f} → {timesteps[-1]:.4f}]\n")
 
-# Encode prompt
-prompt = "A ball bouncing up a staircase, hitting each step sequentially."
+# Read prompt from file (in same directory as script)
+prompt_file = "prompt.txt"
+if os.path.exists(prompt_file):
+    with open(prompt_file, 'r') as f:
+        # Read first non-empty line as the prompt
+        for line in f:
+            line = line.strip()
+            if line:
+                prompt = line
+                break
+        else:
+            prompt = "A ball bouncing up a staircase, hitting each step sequentially."
+    print(f"✓ Loaded prompt from {prompt_file}")
+else:
+    prompt = "A ball bouncing up a staircase, hitting each step sequentially."
+    print(f"⚠ {prompt_file} not found, using default prompt")
+
 prompt_embeds_tuple = pipeline.encode_prompt(
     prompt=prompt,
     device="cuda",
@@ -94,18 +109,12 @@ prompt_attention_mask = prompt_embeds_tuple[1]
 print(f"Prompt: '{prompt}'")
 print(f"prompt_embeds: {prompt_embeds.shape}\n")
 
-# # Video parameters
-# # keep it when we launch 80GB H100 GPU
-# height = 512
-# width = 768
-# num_frames = 25
-# frame_rate = 25
-
-# After (MEMORY EFFICIENT)
-height = 256  # 4x less memory
-width = 384   # 4x less memory
-num_frames = 9  # ~3x less memory
-frame_rate = 8
+# Video parameters
+# Reduced for memory efficiency during GRPO training
+height = 512
+width = 768
+num_frames = 81  # 8×10 + 1 (optimal for model), ~5 seconds at 16 fps
+frame_rate = 16
 
 # Calculate latent dimensions
 vae_scale_factor = pipeline.vae_scale_factor
@@ -148,7 +157,6 @@ print(f"   Unfrozen params count: {sum(p.numel() for p in unfrozen_params):,}\n"
 
 optimizer = torch.optim.Adam(unfrozen_params, # Only these will be updated by the optimizer
                             lr=1e-4, betas=(0.9, 0.95), weight_decay=0.01) # learning rate and betas
-
 # ============================================================================
 # Initialize Latents
 # ============================================================================
@@ -162,9 +170,6 @@ latents = pipeline.prepare_latents(
     generator=None,
 )
 
-# # Prepare pixel coordinates for transformer (but don't patchify latents!)
-# # Just get the coords from patchifier
-# _, latent_coords = pipeline.patchifier.patchify(latents)
 
 # Patchify latents (now with correct 128 channels!)
 latents, latent_coords = pipeline.patchifier.patchify(latents)
@@ -176,10 +181,8 @@ pixel_coords = latent_to_pixel_coords(
     causal_fix=pipeline.transformer.config.causal_temporal_positioning,
 )
 
-# # Scale temporal dimension
-# fractional_coords = fractional_coords.to(torch.float32)
-# fractional_coords[:, 0] *= (1.0 / frame_rate)
-# indices_grid = fractional_coords
+# Scale temporal dimension
+
 indices_grid = pixel_coords.to(torch.float32)
 indices_grid[:, 0] *= (1.0 / frame_rate)
 # ============================================================================
@@ -193,7 +196,7 @@ for name, param in model.named_parameters():
         
 print(f"📊 Tracking {len(initial_weights)} unfrozen parameters\n")
 
-num_rollouts = 3 # number of GRPO rollouts per timestep (minimum for advantage calculation)
+num_rollouts = 3 
 for i, t in enumerate(timesteps):
     print(f"Step {i+1:02d}/{len(timesteps)} | t={t:.4f}", end="")
         
@@ -255,7 +258,6 @@ for i, t in enumerate(timesteps):
             # Clear GPU memory after each rollout to prevent OOM
             del video_x0, x0_est, next_latents
             torch.cuda.empty_cache()
-        
     ###==================================================================
     # STEP 2: compute the advantage reward for each rollout
     ###==================================================================
@@ -267,6 +269,10 @@ for i, t in enumerate(timesteps):
     print("\nAdvantages:")
     for k in range(num_rollouts):
         print(f"  Rollout {k}: reward={rewards[k]:.4f}, advantage={advantage_rewards[k]:.4f}")
+    
+    # Clear rollout data to free memory before backward pass
+    del rollout_rewards, rewards, mean_reward, std_reward
+    torch.cuda.empty_cache()
     
     #=======================================================================
     # STEP 3: Compute loss with a SINGLE forward pass (model is deterministic)
@@ -430,11 +436,25 @@ with torch.no_grad():
     
     # Convert bfloat16 to float32, then to numpy
     video_np = final_video[0].float().cpu().numpy()  # [num_frames, 3, H, W]
+    
+    print(f"  [DEBUG] Video tensor stats before transpose:")
+    print(f"    Shape: {video_np.shape}")
+    print(f"    Min: {video_np.min():.4f}, Max: {video_np.max():.4f}, Mean: {video_np.mean():.4f}")
+    print(f"    Per-channel: R={video_np[:, 0].mean():.4f}, G={video_np[:, 1].mean():.4f}, B={video_np[:, 2].mean():.4f}")
+    
     video_np = np.transpose(video_np, (0, 2, 3, 1))  # [num_frames, H, W, 3]
+    # Video is already in [0, 1] range from decode_x0_to_video
     video_np = (video_np * 255).clip(0, 255).astype(np.uint8)
     
-    # Save as MP4
-    writer = imageio.get_writer(output_filename, fps=frame_rate)
+    # Save as MP4 with explicit format and quality settings
+    writer = imageio.get_writer(
+        output_filename, 
+        fps=frame_rate,
+        codec='libx264',
+        quality=8,  # Higher quality
+        pixelformat='yuv420p',  # Standard color format
+        macro_block_size=1
+    )
     for frame in video_np:
         writer.append_data(frame)
     writer.close()

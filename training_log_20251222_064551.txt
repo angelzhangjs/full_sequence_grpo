@@ -1,0 +1,71 @@
+======================================================================
+LTX-VIDEO PIPELINE - DENOISING WITH X0 PREDICTIONS
+Logging to: training_log_20251222_064551.txt
+======================================================================
+
+Downloading ltxv-13b-0.9.8-dev-fp8.safetensors...
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|##########| 2/2 [00:00<00:00, 53.26it/s]
+✅ Pipeline loaded!
+
+Timesteps: 20 steps [1.0000 → 0.1830]
+
+⚠ ../prompt.txt not found, using default prompt
+Prompt: 'A ball bouncing up a staircase, hitting each step sequentially.'
+prompt_embeds: torch.Size([1, 256, 4096])
+
+Latent shape: (1, 128, 21, 16, 24)
+
+  Unfreezing: proj_out.weight - torch.Size([128, 4096])
+  Unfreezing: proj_out.bias - torch.Size([128])
+
+✅ Total unfrozen parameters: 2
+   Unfrozen params count: 524,416
+
+/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/functional.py:505: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at /pytorch/aten/src/ATen/native/TensorShape.cpp:4317.)
+  return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
+📊 Tracking 2 unfrozen parameters
+
+Step 01/20 | t=1.0000Loading DINOv2 model...
+Using cache found in /home/ubuntu/.cache/torch/hub/facebookresearch_dinov2_main
+/home/ubuntu/.cache/torch/hub/facebookresearch_dinov2_main/dinov2/layers/swiglu_ffn.py:51: UserWarning: xFormers is not available (SwiGLU)
+  warnings.warn("xFormers is not available (SwiGLU)")
+/home/ubuntu/.cache/torch/hub/facebookresearch_dinov2_main/dinov2/layers/attention.py:33: UserWarning: xFormers is not available (Attention)
+  warnings.warn("xFormers is not available (Attention)")
+/home/ubuntu/.cache/torch/hub/facebookresearch_dinov2_main/dinov2/layers/block.py:40: UserWarning: xFormers is not available (Block)
+  warnings.warn("xFormers is not available (Block)")
+✅ DINOv2 model loaded!
+
+Advantages:
+  Rollout 0: reward=0.8419, advantage=-1.0783
+  Rollout 1: reward=0.8444, advantage=0.5735
+  Rollout 2: reward=0.8443, advantage=0.5048
+Traceback (most recent call last):
+  File "/lambda/nfs/angel-research/full_sequence_grpo/pipeline.py", line 289, in <module>
+    noise_pred_for_loss = model(
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/lambda/nfs/angel-research/full_sequence_grpo/ltx_video/ltx_video/models/transformers/transformer3d.py", line 478, in forward
+    hidden_states = block(
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/lambda/nfs/angel-research/full_sequence_grpo/ltx_video/ltx_video/models/transformers/attention.py", line 254, in forward
+    attn_output = self.attn1(
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/lambda/nfs/angel-research/full_sequence_grpo/ltx_video/ltx_video/models/transformers/attention.py", line 709, in forward
+    return self.processor(
+  File "/lambda/nfs/angel-research/full_sequence_grpo/ltx_video/ltx_video/models/transformers/attention.py", line 997, in __call__
+    query = attn.q_norm(query)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/diffusers/models/normalization.py", line 561, in forward
+    hidden_states = hidden_states.to(self.weight.dtype)
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 64.00 MiB. GPU 0 has a total capacity of 79.19 GiB of which 6.50 MiB is free. Including non-PyTorch memory, this process has 79.17 GiB memory in use. Of the allocated memory 78.49 GiB is allocated by PyTorch, and 84.20 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)

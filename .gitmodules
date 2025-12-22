@@ -1,0 +1,3 @@
+[submodule "ltx_video"]
+	path = ltx_video
+	url = git@github.com:Lightricks/LTX-Video.git

@@ -65,14 +65,18 @@ def decode_x0_to_video(
             x0_unpatchified,
             pipeline.vae,
             is_video=True,
-            vae_per_channel_normalize=True,
+            vae_per_channel_normalize=True,  # Use True like official LTX-Video inference
             timestep=decode_timestep,
         )
+        # Use pipeline's image_processor.postprocess() for consistent normalization
+        # This matches exactly what baseline LTX-Video does
+        video = pipeline.image_processor.postprocess(video, output_type="pt")
+        
         # Rearrange from [batch, channels, frames, H, W] to [batch, frames, channels, H, W]
         # This is the format expected by the reward function
         video = video.permute(0, 2, 1, 3, 4)
         
-    return video  # Shape: [batch, num_frames, channels, height, width]
+    return video  # Shape: [batch, num_frames, channels, height, width], range [0, 1]
 
 # ============================================================================
 # DINO Feature Extractor (Lazy Loading)
@@ -168,7 +172,8 @@ def compute_optical_flow(video: torch.Tensor) -> torch.Tensor:
     batch_size, num_frames, C, H, W = video.shape
     
     # Convert to numpy and grayscale for OpenCV
-    video_np = video[0].cpu().numpy()  # [num_frames, 3, H, W]
+    # Convert to float32 first to avoid BFloat16 issues with numpy
+    video_np = video[0].float().cpu().numpy()  # [num_frames, 3, H, W]
     video_np = (video_np * 255).astype(np.uint8)
     video_np = np.transpose(video_np, (0, 2, 3, 1))  # [num_frames, H, W, 3]
     
@@ -328,12 +333,16 @@ def reward_function(video: torch.Tensor, weights: Dict[str, float] = None) -> to
             'gravity_physics': 0.25,        # Physics-based gravity evaluation
             'flow_consistency': 0.10,       # Optical flow consistency
         }
-    
+   
     # ========================================================================
     # 1. Extract DINO Features
     # ========================================================================
     dino_features = DINOFeatureExtractor.extract_features(video)
     motion_metrics = detect_object_motion(dino_features)
+    
+    # Clear DINO features to save memory
+    del dino_features
+    torch.cuda.empty_cache()
     
     # ========================================================================
     # 2. Compute Optical Flow
@@ -358,6 +367,10 @@ def reward_function(video: torch.Tensor, weights: Dict[str, float] = None) -> to
         # ====================================================================
         physics_metrics = evaluate_gravity_physics(velocity_data)
         gravity_score = physics_metrics['gravity_physics_score']
+        
+        # Clear optical flow and velocity data to save memory
+        del optical_flow, velocity_data, flow_magnitude
+        torch.cuda.empty_cache()
         
     except Exception as e:
         # Fallback if optical flow fails
