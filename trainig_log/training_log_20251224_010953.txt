@@ -1,0 +1,209 @@
+======================================================================
+LTX-VIDEO PIPELINE - DENOISING WITH X0 PREDICTIONS
+Logging to: training_log_20251224_010953.txt
+======================================================================
+
+Downloading ltxv-2b-0.9.8-distilled.safetensors...
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|##########| 2/2 [00:00<00:00, 49.76it/s]
+✅ Pipeline loaded!
+
+Timesteps: 20 steps [1.0000 → 0.1830]
+
+✓ Loaded prompt from prompt.txt
+Prompt: 'A ball bouncing down a staircase, hitting each step sequentially.'
+prompt_embeds: torch.Size([1, 256, 4096])
+
+⚠️  Training will decode 81-frame videos at each step
+   Est. VAE decode memory: ~13.0 GB per step
+Latent shape: (1, 128, 11, 16, 24)
+
+  Unfreezing: proj_out.weight - torch.Size([128, 2048])
+  Unfreezing: proj_out.bias - torch.Size([128])
+
+✅ Total unfrozen parameters: 2
+   Unfrozen params count: 262,272
+
+/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/functional.py:505: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at /pytorch/aten/src/ATen/native/TensorShape.cpp:4317.)
+  return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
+📊 Tracking 2 unfrozen parameters
+
+Step 01/20 | t=1.0000Loading DINOv2 model...
+  Attempt 1/3: Loading from Hugging Face Hub...
+  ✅ Loaded via Hugging Face transformers
+✅ DINOv2 model loaded successfully!
+
+[Diversity] Reward std: 0.0110, Range: 0.0218 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7115, advantage=-1.0572
+  Rollout 1: reward=0.7249, advantage=0.1493
+  Rollout 2: reward=0.7333, advantage=0.9078
+  ✅ Weights updated! grad_norm=0.000001, weight_Δ=0.000099
+Step 02/20 | t=0.9975
+[Diversity] Reward std: 0.0116, Range: 0.0222 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7164, advantage=-0.3342
+  Rollout 1: reward=0.7111, advantage=-0.7812
+  Rollout 2: reward=0.7333, advantage=1.1153
+  ✅ Weights updated! grad_norm=0.000001, weight_Δ=0.000099
+Step 03/20 | t=0.9950
+[Diversity] Reward std: 0.0007, Range: 0.0014 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7193, advantage=0.2868
+  Rollout 1: reward=0.7183, advantage=-0.9839
+  Rollout 2: reward=0.7196, advantage=0.6970
+  ✅ Weights updated! grad_norm=0.000007, weight_Δ=0.000099
+Step 04/20 | t=0.9925
+[Diversity] Reward std: 0.0035, Range: 0.0070 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7197, advantage=-0.9333
+  Rollout 1: reward=0.7228, advantage=-0.0738
+  Rollout 2: reward=0.7267, advantage=1.0071
+  ✅ Weights updated! grad_norm=0.000000, weight_Δ=0.000098
+Step 05/20 | t=0.9900
+[Diversity] Reward std: 0.0025, Range: 0.0047 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7213, advantage=-1.0890
+  Rollout 1: reward=0.7250, advantage=0.3590
+  Rollout 2: reward=0.7260, advantage=0.7299
+  ✅ Weights updated! grad_norm=0.000007, weight_Δ=0.000098
+Step 06/20 | t=0.9875
+[Diversity] Reward std: 0.0007, Range: 0.0013 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7219, advantage=-0.8200
+  Rollout 1: reward=0.7233, advantage=0.9077
+  Rollout 2: reward=0.7225, advantage=-0.0876
+  ✅ Weights updated! grad_norm=0.000008, weight_Δ=0.000097
+Step 07/20 | t=0.9850
+[Diversity] Reward std: 0.0064, Range: 0.0113 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7177, advantage=-1.1360
+  Rollout 1: reward=0.7284, advantage=0.5297
+  Rollout 2: reward=0.7289, advantage=0.6063
+  ✅ Weights updated! grad_norm=0.000002, weight_Δ=0.000096
+Step 08/20 | t=0.9825
+[Diversity] Reward std: 0.0036, Range: 0.0072 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7217, advantage=-0.9359
+  Rollout 1: reward=0.7289, advantage=1.0064
+  Rollout 2: reward=0.7249, advantage=-0.0705
+  ✅ Weights updated! grad_norm=0.000000, weight_Δ=0.000096
+Step 09/20 | t=0.9800
+[Diversity] Reward std: 0.0052, Range: 0.0104 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7194, advantage=-0.9370
+  Rollout 1: reward=0.7298, advantage=1.0202
+  Rollout 2: reward=0.7240, advantage=-0.0832
+  ✅ Weights updated! grad_norm=0.000000, weight_Δ=0.000095
+Step 10/20 | t=0.9775
+[Diversity] Reward std: 0.0071, Range: 0.0126 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7185, advantage=-1.1372
+  Rollout 1: reward=0.7304, advantage=0.5187
+  Rollout 2: reward=0.7311, advantage=0.6185
+  ✅ Weights updated! grad_norm=0.000001, weight_Δ=0.000094
+Step 11/20 | t=0.9750
+[Diversity] Reward std: 0.0092, Range: 0.0184 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7132, advantage=-0.9877
+  Rollout 1: reward=0.7316, advantage=0.9908
+  Rollout 2: reward=0.7224, advantage=-0.0032
+  ✅ Weights updated! grad_norm=0.000001, weight_Δ=0.000094
+Step 12/20 | t=0.9630
+[Diversity] Reward std: 0.0059, Range: 0.0102 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7150, advantage=-1.1353
+  Rollout 1: reward=0.7251, advantage=0.5588
+  Rollout 2: reward=0.7252, advantage=0.5765
+  ✅ Weights updated! grad_norm=0.000004, weight_Δ=0.000093
+Step 13/20 | t=0.9320
+[Diversity] Reward std: 0.0005, Range: 0.0009 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7123, advantage=-0.9666
+  Rollout 1: reward=0.7132, advantage=0.4487
+  Rollout 2: reward=0.7132, advantage=0.5176
+  ✅ Weights updated! grad_norm=0.000025, weight_Δ=0.000093
+Step 14/20 | t=0.8820
+[Diversity] Reward std: 0.0071, Range: 0.0142 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7107, advantage=-1.0213
+  Rollout 1: reward=0.7249, advantage=0.9467
+  Rollout 2: reward=0.7186, advantage=0.0746
+  ✅ Weights updated! grad_norm=0.000001, weight_Δ=0.000093
+Step 15/20 | t=0.8130
+[Diversity] Reward std: 0.0045, Range: 0.0080 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7136, advantage=-1.1278
+  Rollout 1: reward=0.7216, advantage=0.6169
+  Rollout 2: reward=0.7211, advantage=0.5109
+  ✅ Weights updated! grad_norm=0.000001, weight_Δ=0.000092
+Step 16/20 | t=0.7250
+[Diversity] Reward std: 0.0036, Range: 0.0068 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7168, advantage=-0.7776
+  Rollout 1: reward=0.7236, advantage=1.0906
+  Rollout 2: reward=0.7185, advantage=-0.3131
+  ✅ Weights updated! grad_norm=0.000001, weight_Δ=0.000092
+Step 17/20 | t=0.6180
+[Diversity] Reward std: 0.0006, Range: 0.0012 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7214, advantage=0.8857
+  Rollout 1: reward=0.7202, advantage=-0.8178
+  Rollout 2: reward=0.7207, advantage=-0.0680
+  ✅ Weights updated! grad_norm=0.000007, weight_Δ=0.000091
+Step 18/20 | t=0.4920
+[Diversity] Reward std: 0.0034, Range: 0.0061 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7211, advantage=0.6381
+  Rollout 1: reward=0.7206, advantage=0.4796
+  Rollout 2: reward=0.7150, advantage=-1.1178
+  ✅ Weights updated! grad_norm=0.000004, weight_Δ=0.000091
+Step 19/20 | t=0.3470
+[Diversity] Reward std: 0.0010, Range: 0.0017 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7199, advantage=0.5405
+  Rollout 1: reward=0.7182, advantage=-1.0464
+  Rollout 2: reward=0.7199, advantage=0.5058
+  ✅ Weights updated! grad_norm=0.000004, weight_Δ=0.000091
+Step 20/20 | t=0.1830
+[Diversity] Reward std: 0.0008, Range: 0.0015 ⚠️  LOW DIVERSITY!
+Advantages:
+  Rollout 0: reward=0.7185, advantage=1.0313
+  Rollout 1: reward=0.7171, advantage=-0.5012
+  Rollout 2: reward=0.7171, advantage=-0.5302
+  ✅ Weights updated! grad_norm=0.000011, weight_Δ=0.000090
+
+======================================================================
+TRAINING COMPLETE - WEIGHT CHANGE SUMMARY
+======================================================================
+  proj_out.weight                                    Δ=0.00177765
+  proj_out.bias                                      Δ=0.00198364
+
+  Average total weight change: 0.00188065
+======================================================================
+
+
+======================================================================
+GENERATING FINAL VIDEO WITH UPDATED WEIGHTS
+======================================================================
+
+Decoding final video...
+  [DEBUG] x0_final latent stats:
+    Shape: torch.Size([1, 4224, 128])
+    Min: -7.5938, Max: 8.6250, Mean: -0.0086
+    Std: 1.3906
+  [DEBUG] Video tensor stats before transpose:
+    Shape: (81, 3, 512, 768)
+    Min: 0.0000, Max: 1.0000, Mean: 0.2761
+    Per-channel: R=0.2774, G=0.2772, B=0.2737
+    Channel std dev: 0.0017 (low = grayscale)
+  [INFO] Video already normalized to [0, 1] by image_processor
+    Current range: [0.0000, 1.0000]
+  [DEBUG] Final uint8 stats:
+    Min: 0, Max: 255, Mean: 70.0
+    Per-channel uint8: R=70.3, G=70.3, B=69.4
+✅ Final video saved to: outputs/final_video_20251224_010953.mp4
+   Resolution: 768×512
+   Frames: 81
+   Duration: 5.06s
+
+✅ Training complete! Log saved to: training_log_20251224_010953.txt

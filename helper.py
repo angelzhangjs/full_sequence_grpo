@@ -65,7 +65,7 @@ def decode_x0_to_video(
             x0_unpatchified,
             pipeline.vae,
             is_video=True,
-            vae_per_channel_normalize=True,  # Use True like official LTX-Video inference
+            vae_per_channel_normalize=True,  # Keep official setting for balanced colors
             timestep=decode_timestep,
         )
         # Use pipeline's image_processor.postprocess() for consistent normalization
@@ -94,9 +94,66 @@ class DINOFeatureExtractor:
         """Load DINOv2 model (lazy loading)"""
         if cls._model is None:
             print("Loading DINOv2 model...")
-            # Using dinov2_vits14 (small) for faster inference
-            # Options: dinov2_vits14, dinov2_vitb14, dinov2_vitl14, dinov2_vitg14
-            cls._model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14')
+            
+            # Try multiple methods to load the model
+            import time
+            import os
+            max_retries = 3
+            model_loaded = False
+            
+            for attempt in range(max_retries):
+                # Method 1: Try Hugging Face transformers (more reliable, doesn't use GitHub)
+                if not model_loaded:
+                    try:
+                        print(f"  Attempt {attempt + 1}/{max_retries}: Loading from Hugging Face Hub...")
+                        from transformers import AutoModel
+                        
+                        # Get token from environment or use saved login
+                        hf_token = os.environ.get('HF_TOKEN', None)
+                        
+                        cls._model = AutoModel.from_pretrained(
+                            'facebook/dinov2-small',
+                            trust_remote_code=True,
+                            token=hf_token
+                        )
+                        print("  ✅ Loaded via Hugging Face transformers")
+                        model_loaded = True
+                        break
+                    except Exception as hf_error:
+                        print(f"  ⚠️  Hugging Face method failed: {str(hf_error)[:100]}")
+                
+                # Method 2: Fallback to torch.hub (requires GitHub)
+                if not model_loaded:
+                    try:
+                        print(f"  Attempting torch.hub fallback...")
+                        cls._model = torch.hub.load(
+                            'facebookresearch/dinov2',
+                            'dinov2_vits14',
+                            force_reload=False,
+                            skip_validation=True
+                        )
+                        print("  ✅ Loaded via torch.hub")
+                        model_loaded = True
+                        break
+                    except Exception as hub_error:
+                        print(f"  ⚠️  torch.hub method failed: {str(hub_error)[:100]}")
+                
+                # If both methods failed, wait and retry
+                if not model_loaded and attempt < max_retries - 1:
+                    wait_time = 2 ** attempt
+                    print(f"  ⏳ Both methods failed. Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+            
+            if not model_loaded:
+                raise RuntimeError(
+                    "Failed to load DINOv2 model after multiple attempts.\n"
+                    "Solutions:\n"
+                    "1. Login to Hugging Face: huggingface-cli login\n"
+                    "2. Or set token: export HF_TOKEN='your_token_here'\n"
+                    "3. Check if GitHub is accessible (503 errors)\n"
+                    "4. Check your internet connection"
+                )
+            
             cls._model = cls._model.cuda()
             cls._model.eval()
             
@@ -107,7 +164,7 @@ class DINOFeatureExtractor:
                     std=[0.229, 0.224, 0.225]
                 )
             ])
-            print("✅ DINOv2 model loaded!")
+            print("✅ DINOv2 model loaded successfully!")
             
         return cls._model, cls._transform
     
@@ -145,12 +202,23 @@ class DINOFeatureExtractor:
         
         # Extract features
         with torch.no_grad():
-            features = model(frames_normalized)  # [batch*num_frames, feature_dim]
+            output = model(frames_normalized)
+            
+            # Handle different model output types
+            if hasattr(output, 'last_hidden_state'):
+                # Transformers model output (BaseModelOutputWithPooling)
+                # Use the [CLS] token output (first token) as the feature
+                features = output.last_hidden_state[:, 0, :]  # [batch*num_frames, feature_dim]
+            elif hasattr(output, 'pooler_output'):
+                # Some transformers models have pooler_output
+                features = output.pooler_output  # [batch*num_frames, feature_dim]
+            else:
+                # torch.hub DINOv2 model returns tensor directly
+                features = output  # [batch*num_frames, feature_dim]
         
         # Reshape back to video format
         feature_dim = features.shape[-1]
-        features = features.view(batch_size, num_frames, feature_dim)
-        
+        features = features.view(batch_size, num_frames, feature_dim) 
         return features
 
 # ============================================================================
@@ -266,6 +334,103 @@ def detect_object_motion(dino_features: torch.Tensor) -> Dict[str, float]:
     }
 
 
+def compute_vertical_motion(video: torch.Tensor) -> float:
+    """
+    Compute if there's net downward motion (for bouncing ball down stairs).
+    
+    Args:
+        video: [1, num_frames, 3, H, W] in range [0, 1]
+    
+    Returns:
+        score: 0-1, higher = more downward motion
+    """
+    # Compute center of mass for each frame
+    batch, num_frames, channels, height, width = video.shape
+    
+    # Use luminance as weight (where the bright object is)
+    luminance = video.mean(dim=2)  # [1, num_frames, H, W]
+    
+    # Compute vertical center of mass for each frame
+    y_coords = torch.arange(height, device=video.device).float().view(1, 1, height, 1)
+    
+    # Weighted average of y-coordinates (center of mass)
+    vertical_centers = []
+    for t in range(num_frames):
+        frame_lum = luminance[0, t]  # [H, W]
+        total_weight = frame_lum.sum() + 1e-6
+        weighted_y = (frame_lum * y_coords[0, 0, :, 0].unsqueeze(1)).sum()
+        center_y = weighted_y / total_weight
+        vertical_centers.append(center_y.item())
+    
+    # Check if center of mass moves downward over time
+    vertical_centers = torch.tensor(vertical_centers)
+    
+    # Linear regression: does y increase over time? (down = higher y)
+    frames_idx = torch.arange(num_frames, dtype=torch.float32)
+    
+    # Compute correlation between time and vertical position
+    mean_y = vertical_centers.mean()
+    mean_t = frames_idx.mean()
+    
+    covariance = ((frames_idx - mean_t) * (vertical_centers - mean_y)).mean()
+    std_t = frames_idx.std() + 1e-6
+    std_y = vertical_centers.std() + 1e-6
+    
+    correlation = covariance / (std_t * std_y)
+    
+    # Positive correlation = downward motion (good!)
+    # Normalize to [0, 1]
+    score = (correlation.item() + 1.0) / 2.0  # Map [-1, 1] → [0, 1]
+    
+    return score
+
+
+def compute_color_saturation(video: torch.Tensor) -> float:
+    """
+    Compute color saturation to prevent washed-out grayscale videos.
+    
+    Args:
+        video: [1, num_frames, 3, H, W] in range [0, 1]
+    
+    Returns:
+        score: 0-1, higher = more colorful
+    """
+    # DEBUG: Check input shape
+    print(f"    [COLOR DEBUG] Input video shape: {video.shape}")
+    
+    # Extract RGB channels
+    r = video[:, :, 0, :, :]
+    g = video[:, :, 1, :, :]
+    b = video[:, :, 2, :, :]
+    
+    # Channel variance (colorful videos have different R,G,B means)
+    r_mean = r.mean().item()
+    g_mean = g.mean().item()
+    b_mean = b.mean().item()
+    channel_std = torch.std(torch.tensor([r_mean, g_mean, b_mean])).item()
+    # Calibrated for GRPO: allows score variation between rollouts
+    # Grayscale (std~0.003) → ~0.01, Moderate (std~0.08) → ~0.33, Vibrant (std~0.16) → ~0.67
+    saturation_1 = torch.clamp(torch.tensor(channel_std / 0.24), 0, 1).item()
+    
+    # Pixel diversity (R≠G≠B in pixels, not grayscale)
+    rg_diff = (r - g).abs().mean().item()
+    gb_diff = (g - b).abs().mean().item()
+    rb_diff = (r - b).abs().mean().item()
+    pixel_diversity = (rg_diff + gb_diff + rb_diff) / 3.0
+    # Calibrated: Gray (~0.003) → ~0.01, Moderate (~0.10) → ~0.33, Vibrant (~0.21) → ~0.70
+    saturation_2 = torch.clamp(torch.tensor(pixel_diversity / 0.30), 0, 1).item()
+    
+    # DEBUG: Print color metrics
+    print(f"    [COLOR DEBUG] RGB means: [{r_mean:.4f}, {g_mean:.4f}, {b_mean:.4f}]")
+    print(f"    [COLOR DEBUG] channel_std: {channel_std:.6f}, sat1: {saturation_1:.4f}")
+    print(f"    [COLOR DEBUG] pixel_div: {pixel_diversity:.6f}, sat2: {saturation_2:.4f}")
+    
+    # Combine
+    final_score = 0.5 * saturation_1 + 0.5 * saturation_2
+    print(f"    [COLOR DEBUG] final_score: {final_score:.4f}")
+    return final_score
+
+
 def evaluate_gravity_physics(velocity_data: Dict[str, torch.Tensor], 
                              expected_gravity: float = 9.8,
                              tolerance: float = 0.5) -> Dict[str, float]:
@@ -327,11 +492,13 @@ def reward_function(video: torch.Tensor, weights: Dict[str, float] = None) -> to
     """
     if weights is None:
         weights = {
-            'motion_smoothness': 0.25,      # DINO-based smooth motion
-            'motion_consistency': 0.25,     # DINO-based consistency
-            'velocity_realism': 0.15,       # Realistic velocity magnitudes
-            'gravity_physics': 0.25,        # Physics-based gravity evaluation
-            'flow_consistency': 0.10,       # Optical flow consistency
+            'motion_smoothness': 0.15,      # DINO-based smooth motion
+            'motion_consistency': 0.15,     # DINO-based consistency
+            'velocity_realism': 0.10,       # Realistic velocity magnitudes
+            'gravity_physics': 0.15,        # Physics-based gravity evaluation
+            'flow_consistency': 0.05,       # Optical flow consistency
+            'color_saturation': 0.30,       # Color preservation - PREVENTS GRAYSCALE!
+            'vertical_motion': 0.10,        # Downward progression - PREVENTS BOUNCING IN PLACE!
         }
    
     # ========================================================================
@@ -380,7 +547,17 @@ def reward_function(video: torch.Tensor, weights: Dict[str, float] = None) -> to
         gravity_score = 0.5
     
     # ========================================================================
-    # 4. Combine Rewards
+    # 4. Compute Color Saturation - PREVENT GRAYSCALE!
+    # ========================================================================
+    color_score = compute_color_saturation(video)
+    
+    # ========================================================================
+    # 5. Compute Vertical Motion - REWARD DOWNWARD PROGRESSION!
+    # ========================================================================
+    vertical_motion_score = compute_vertical_motion(video)
+    
+    # ========================================================================
+    # 6. Combine Rewards
     # ========================================================================
     reward_components = {
         'motion_smoothness': motion_metrics['motion_smoothness'],
@@ -388,6 +565,8 @@ def reward_function(video: torch.Tensor, weights: Dict[str, float] = None) -> to
         'velocity_realism': velocity_score,
         'gravity_physics': gravity_score,
         'flow_consistency': flow_consistency_score,
+        'color_saturation': color_score,  # CRITICAL - prevents grayscale!
+        'vertical_motion': vertical_motion_score,  # NEW - rewards downward motion!
     }
     
     # Weighted sum
@@ -396,11 +575,11 @@ def reward_function(video: torch.Tensor, weights: Dict[str, float] = None) -> to
         for key, value in reward_components.items()
     )
     
-    # Print detailed breakdown (optional, can be commented out for speed)
-    # print(f"\n  Reward Components:")
-    # for key, value in reward_components.items():
-    #     print(f"    {key}: {value:.4f} (weight: {weights[key]})")
-    # print(f"  Total Reward: {total_reward:.4f}")
+    # Print detailed breakdown (enabled for debugging)
+    print(f"\n  Reward Components:")
+    for key, value in reward_components.items():
+        print(f"    {key}: {value:.4f} (weight: {weights[key]}, contrib: {weights[key]*value:.4f})")
+    print(f"  Total Reward: {total_reward:.4f}")
     
     return torch.tensor(total_reward, device=video.device)
 

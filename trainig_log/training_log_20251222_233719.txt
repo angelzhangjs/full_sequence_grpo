@@ -1,0 +1,12 @@
+======================================================================
+LTX-VIDEO PIPELINE - DENOISING WITH X0 PREDICTIONS
+Logging to: training_log_20251222_233719.txt
+======================================================================
+
+Downloading ltxv-13b-0.9.8-dev-fp8.safetensors...
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|##########| 2/2 [00:00<00:00, 53.95it/s]
+✅ Pipeline loaded!
+Traceback (most recent call last):
+  File "/lambda/nfs/angel-research/full_sequence_grpo/pipeline.py", line 84, in <module>
+    print(f"⚠️  Training will decode {num_frames}-frame videos at each step")
+NameError: name 'num_frames' is not defined

@@ -1,0 +1,62 @@
+======================================================================
+LTX-VIDEO PIPELINE - DENOISING WITH X0 PREDICTIONS
+Logging to: training_log_20251222_222346.txt
+======================================================================
+
+Downloading ltxv-13b-0.9.8-dev-fp8.safetensors...
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|##########| 2/2 [00:00<00:00, 52.85it/s]
+✅ Pipeline loaded!
+
+Timesteps: 20 steps [1.0000 → 0.1830]
+
+✓ Loaded prompt from prompt.txt
+Prompt: 'A ball rolls down a steep ramp that gradually flattens, speeding up at first and then moving at constant speed on the flat surface.'
+prompt_embeds: torch.Size([1, 256, 4096])
+
+Latent shape: (1, 128, 11, 16, 24)
+
+  Unfreezing: proj_out.weight - torch.Size([128, 4096])
+  Unfreezing: proj_out.bias - torch.Size([128])
+
+✅ Total unfrozen parameters: 2
+   Unfrozen params count: 524,416
+
+/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/functional.py:505: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at /pytorch/aten/src/ATen/native/TensorShape.cpp:4317.)
+  return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
+📊 Tracking 2 unfrozen parameters
+
+Step 01/20 | t=1.0000Loading DINOv2 model...
+Traceback (most recent call last):
+  File "/lambda/nfs/angel-research/full_sequence_grpo/pipeline.py", line 254, in <module>
+    reward = reward_function(video_x0)
+  File "/lambda/nfs/angel-research/full_sequence_grpo/helper.py", line 340, in reward_function
+    dino_features = DINOFeatureExtractor.extract_features(video)
+  File "/lambda/nfs/angel-research/full_sequence_grpo/helper.py", line 125, in extract_features
+    model, transform = cls.get_model()
+  File "/lambda/nfs/angel-research/full_sequence_grpo/helper.py", line 99, in get_model
+    cls._model = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14')
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/hub.py", line 643, in load
+    repo_or_dir = _get_cache_or_reload(
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/hub.py", line 234, in _get_cache_or_reload
+    repo_owner, repo_name, ref = _parse_repo_info(github)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/hub.py", line 161, in _parse_repo_info
+    with urlopen(f"https://github.com/{repo_owner}/{repo_name}/tree/main/"):
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/urllib/request.py", line 216, in urlopen
+    return opener.open(url, data, timeout)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/urllib/request.py", line 519, in open
+    response = self._open(req, data)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/urllib/request.py", line 536, in _open
+    result = self._call_chain(self.handle_open, protocol, protocol +
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/urllib/request.py", line 496, in _call_chain
+    result = func(*args)
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/urllib/request.py", line 1391, in https_open
+    return self.do_open(http.client.HTTPSConnection, req,
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/urllib/request.py", line 1352, in do_open
+    r = h.getresponse()
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/http/client.py", line 1375, in getresponse
+    response.begin()
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/http/client.py", line 318, in begin
+    version, status, reason = self._read_status()
+  File "/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/http/client.py", line 287, in _read_status
+    raise RemoteDisconnected("Remote end closed connection without"
+http.client.RemoteDisconnected: Remote end closed connection without response

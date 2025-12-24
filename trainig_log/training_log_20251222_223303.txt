@@ -1,0 +1,39 @@
+======================================================================
+LTX-VIDEO PIPELINE - DENOISING WITH X0 PREDICTIONS
+Logging to: training_log_20251222_223303.txt
+======================================================================
+
+Downloading ltxv-13b-0.9.8-dev-fp8.safetensors...
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|##########| 2/2 [00:00<00:00, 53.38it/s]
+✅ Pipeline loaded!
+
+Timesteps: 20 steps [1.0000 → 0.1830]
+
+✓ Loaded prompt from prompt.txt
+Prompt: 'A ball rolls down a steep ramp that gradually flattens, speeding up at first and then moving at constant speed on the flat surface.'
+prompt_embeds: torch.Size([1, 256, 4096])
+
+Latent shape: (1, 128, 11, 16, 24)
+
+  Unfreezing: proj_out.weight - torch.Size([128, 4096])
+  Unfreezing: proj_out.bias - torch.Size([128])
+
+✅ Total unfrozen parameters: 2
+   Unfrozen params count: 524,416
+
+/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/functional.py:505: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at /pytorch/aten/src/ATen/native/TensorShape.cpp:4317.)
+  return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
+📊 Tracking 2 unfrozen parameters
+
+Step 01/20 | t=1.0000Loading DINOv2 model...
+  Attempt 1/3: Loading from Hugging Face Hub...
+  ✅ Loaded via Hugging Face transformers
+✅ DINOv2 model loaded successfully!
+Traceback (most recent call last):
+  File "/lambda/nfs/angel-research/full_sequence_grpo/pipeline.py", line 254, in <module>
+    reward = reward_function(video_x0)
+  File "/lambda/nfs/angel-research/full_sequence_grpo/helper.py", line 388, in reward_function
+    'velocity_realism': velocity_score,
+  File "/lambda/nfs/angel-research/full_sequence_grpo/helper.py", line 199, in extract_features
+    
+AttributeError: 'BaseModelOutputWithPooling' object has no attribute 'shape'

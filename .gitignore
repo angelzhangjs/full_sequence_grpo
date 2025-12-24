@@ -93,3 +93,44 @@ datasets/
 !prompt.txt
 !requirements.txt
 !README.md
+# Large files - Videos
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Model checkpoints and weights
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+*.bin
+
+# Training outputs
+outputs/
+grpo/
+baseline/
+i2v_outputs*/
+baseline_output/
+
+# Training logs (optional - might want to keep)
+# *.txt
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# System files
+.DS_Store
+*.swp
+*.swo
+
+# Large data files
+*.npy
+*.npz
+*.pkl
+*.pickle

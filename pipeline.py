@@ -13,6 +13,20 @@ import os
 import sys
 from datetime import datetime
 from helper import decode_x0_to_video, reward_function
+import numpy as np
+import random
+
+# ============================================================================
+# Set Random Seeds for Reproducibility
+# ============================================================================
+SEED = 2026
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.cuda.manual_seed_all(SEED)
+np.random.seed(SEED)
+random.seed(SEED)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
 # ============================================================================
 # Setup Logging to File
@@ -34,9 +48,10 @@ class TeeLogger:
     def close(self):
         self.log.close()
 
-# Create log file with timestamp
+# Create log file with timestamp in grpo/ folder
+os.makedirs("grpo", exist_ok=True)  # Create grpo folder if it doesn't exist
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-log_filename = f"training_log_{timestamp}.txt"
+log_filename = f"grpo/training_log_{timestamp}.txt"
 logger = TeeLogger(log_filename)
 sys.stdout = logger
 sys.stderr = logger  # Also capture warnings/errors
@@ -48,7 +63,8 @@ print("="*70 + "\n")
 # ============================================================================
 # Load Pipeline
 # ============================================================================
-config_path = "configs/ltxv-13b-0.9.8-dev-fp8.yaml"
+# Using 2B model for faster training and lower memory usage
+config_path = "configs/ltxv-2b-0.9.6-dev.yaml"
 cfg = load_pipeline_config(config_path)
 ckpt_name = cfg["checkpoint_path"]   # load the checkpoint name from the config file
 
@@ -66,6 +82,20 @@ pipeline = create_ltx_video_pipeline(
     device="cuda",
     enhance_prompt=False,
 )
+
+# Enable VAE tiling to reduce memory usage during encoding/decoding
+if hasattr(pipeline.vae, 'enable_tiling'):
+    try:
+        pipeline.vae.enable_tiling()
+        print("✅ VAE tiling enabled")
+    except Exception as e:
+        print(f"⚠️  VAE tiling failed: {e}")
+
+# Enable VAE slicing (decode in chunks) - critical for memory
+if hasattr(pipeline.vae, 'enable_slicing'):
+    pipeline.vae.enable_slicing()
+    print("✅ VAE slicing enabled (decodes in chunks)")
+
 print("✅ Pipeline loaded!\n")
 
 # ============================================================================
@@ -110,11 +140,14 @@ print(f"Prompt: '{prompt}'")
 print(f"prompt_embeds: {prompt_embeds.shape}\n")
 
 # Video parameters
-# Reduced for memory efficiency during GRPO training
+# 5 seconds at 16 fps = 80 frames
 height = 512
 width = 768
-num_frames = 81  # 8×10 + 1 (optimal for model), ~5 seconds at 16 fps
+num_frames = 81  # 5 seconds at 16 fps (rounded up for divisibility)
 frame_rate = 16
+
+print(f"⚠️  Training will decode {num_frames}-frame videos at each step")
+print(f"   Est. VAE decode memory: ~{num_frames * 0.16:.1f} GB per step") 
 
 # Calculate latent dimensions
 vae_scale_factor = pipeline.vae_scale_factor
@@ -136,6 +169,7 @@ print(f"Latent shape: {latent_shape}\n")
 # ============================================================================
 # unfreeze the model
 # ============================================================================
+
 # freeze all parameters in the model first
 for param in model.parameters():
     param.requires_grad = False
@@ -208,13 +242,15 @@ for i, t in enumerate(timesteps):
         # STEP 1:Predict with current model weights to get next_latents and x0_est
         #####==========================================================
         with torch.no_grad():  # No gradients during rollout sampling
-            # Add small noise perturbation to latents for variation between rollouts
-            # This is crucial for GRPO to get different rewards
-            if rollout_index > 0:  # Keep first rollout deterministic
-                noise_scale = 0.02  # Small perturbation
+            # IMPROVED: Stronger perturbation for GRPO diversity
+            if rollout_index > 0:
+                noise_scale = 0.25  # Increased to 0.25 for better diversity (was 0.5, then 0.1, then 0.15)
                 latents_perturbed = latents + torch.randn_like(latents) * noise_scale
             else:
                 latents_perturbed = latents
+            
+            # IMPROVED: Higher temperature for better GRPO diversity  
+            temperature = 1.0 + (rollout_index - 1) * 0.08  # [1.0, 1.08, 1.16] - more variation
             
             noise_pred = model(
                 latents_perturbed,  # Use perturbed latents
@@ -223,12 +259,15 @@ for i, t in enumerate(timesteps):
                 encoder_attention_mask=prompt_attention_mask,
                 timestep=t,
                 return_dict=False,
-            )[0] # current model weights
+            )[0]
+            
+            # Apply minimal temperature to noise prediction
+            noise_pred = noise_pred * temperature
             
             # Store noise prediction for later
             rollout_noise_preds.append(noise_pred.clone())
             
-            # Denoise to get x0 estimate (variation comes from perturbed latents above)
+
             next_latents, x0_est = pipeline.denoising_step(
                 latents=latents,  # Use original latents for denoising
                 noise_pred=noise_pred,
@@ -236,7 +275,7 @@ for i, t in enumerate(timesteps):
                 conditioning_mask=None,
                 t=t,
                 extra_step_kwargs={},
-                stochastic_sampling=False,
+                stochastic_sampling=False,  # Enable for color variation
                 return_x0=True,
             )
             
@@ -258,15 +297,97 @@ for i, t in enumerate(timesteps):
             # Clear GPU memory after each rollout to prevent OOM
             del video_x0, x0_est, next_latents
             torch.cuda.empty_cache()
+            
     ###==================================================================
-    # STEP 2: compute the advantage reward for each rollout
+    # STEP 2: Check diversity and regenerate if needed
     ###==================================================================
     rewards = torch.stack(rollout_rewards)
+    reward_std = rewards.std().item()
+    reward_range = (rewards.max() - rewards.min()).item()
+    
+    # DIVERSITY FILTER: Regenerate if diversity is too low
+    MIN_DIVERSITY_STD = 0.02  # Minimum acceptable diversity (lowered for clearer outputs)
+    MAX_RETRY = 2  # Maximum regeneration attempts
+    
+    retry_count = 0
+    while reward_std < MIN_DIVERSITY_STD and retry_count < MAX_RETRY:
+        print(f"\n  ⟳ Low diversity (σ={reward_std:.4f}), regenerating with stronger noise (attempt {retry_count+1}/{MAX_RETRY})...", end="")
+        
+        # Clear old rollouts
+        del rollout_rewards, rollout_noise_preds
+        torch.cuda.empty_cache()
+        
+        # Regenerate with much stronger noise
+        extra_noise = 0.5 * (retry_count + 1)  # Add 0.5, 1.0 extra noise per retry
+        rollout_noise_preds = []
+        rollout_rewards = []
+        
+        for rollout_index in range(num_rollouts):
+            with torch.no_grad():
+                # Stronger perturbation on retry for diversity
+                if rollout_index > 0:
+                    noise_scale = 0.25 * rollout_index + (extra_noise * 0.5)  # More aggressive
+                    latents_perturbed = latents + torch.randn_like(latents) * noise_scale
+                else:
+                    latents_perturbed = latents
+                
+                # Higher temperature on retry for diversity
+                temperature = 1.0 + (rollout_index - 1) * 0.08 + (retry_count * 0.05)
+                
+                noise_pred = model(
+                    latents_perturbed,
+                    indices_grid=indices_grid,
+                    encoder_hidden_states=prompt_embeds,
+                    encoder_attention_mask=prompt_attention_mask,
+                    timestep=t,
+                    return_dict=False,
+                )[0]
+                
+                noise_pred = noise_pred * temperature
+                rollout_noise_preds.append(noise_pred.clone())
+                
+                _, x0_est = pipeline.denoising_step(
+                    latents=latents,
+                    noise_pred=noise_pred,
+                    current_timestep=None,
+                    conditioning_mask=None,
+                    t=t,
+                    extra_step_kwargs={},
+                    stochastic_sampling=False,  # Enable for color variation
+                    return_x0=True,
+                )
+                
+                video_x0 = decode_x0_to_video(
+                    x0_est, pipeline, num_frames, height, width, is_patchified=True
+                )
+                reward = reward_function(video_x0)
+                rollout_rewards.append(reward)
+                
+                del video_x0, x0_est
+                torch.cuda.empty_cache()
+        
+        # Check new diversity
+        rewards = torch.stack(rollout_rewards)
+        reward_std = rewards.std().item()
+        reward_range = (rewards.max() - rewards.min()).item()
+        retry_count += 1
+    
+    # Display diversity result
+    print(f"\n[Diversity] σ={reward_std:.4f}, range={reward_range:.4f}", end="")
+    if reward_std >= MIN_DIVERSITY_STD:
+        print(" ✓ GOOD", end="")
+    elif reward_std >= 0.02:
+        print(" 🟡 OK", end="")
+    else:
+        print(" ⚠️  LOW (using anyway)", end="")
+    
+    # Compute advantages
     mean_reward = rewards.mean()
     std_reward = rewards.std()
+    
     # Group normalization: compute the advantage reward for each rollout
     advantage_rewards = (rewards - mean_reward) / (std_reward + 1e-4)
-    print("\nAdvantages:")
+    print("Advantages:")
     for k in range(num_rollouts):
         print(f"  Rollout {k}: reward={rewards[k]:.4f}, advantage={advantage_rewards[k]:.4f}")
     
@@ -275,7 +396,7 @@ for i, t in enumerate(timesteps):
     torch.cuda.empty_cache()
     
     #=======================================================================
-    # STEP 3: Compute loss with a SINGLE forward pass (model is deterministic)
+    # STEP 3: Compute GRPO loss with proper policy gradient
     ###==================================================================
     # Clear all gradients completely before computing loss
     optimizer.zero_grad()
@@ -284,8 +405,8 @@ for i, t in enumerate(timesteps):
     # Ensure latents has no gradient history from previous timesteps
     latents_for_loss = latents.detach().clone().requires_grad_(True)
     
-    # Since the model is deterministic, one forward pass represents all rollouts
-    noise_pred_for_loss = model(
+    # Get current model's noise prediction (with gradients enabled)
+    noise_pred_current = model(
         latents_for_loss,
         indices_grid=indices_grid.detach(),
         encoder_hidden_states=prompt_embeds.detach(),
@@ -294,11 +415,33 @@ for i, t in enumerate(timesteps):
         return_dict=False,
     )[0]
     
-    log_prob = -0.5 * (noise_pred_for_loss ** 2).sum() / noise_pred_for_loss.numel()
+    # GRPO Policy Gradient: Compute log probability for each rollout
+    # Treat the noise prediction as a Gaussian policy - lower MSE = higher probability
+    log_probs = []
+    for rollout_idx in range(num_rollouts):
+        # MSE between rollout's noise prediction and current model output
+        # Detach the rollout prediction (it was generated with no_grad)
+        rollout_noise = rollout_noise_preds[rollout_idx].detach()
+        
+        # Compute mean squared error as negative log probability
+        # MSE measures how different the rollout was from current policy
+        mse = ((rollout_noise - noise_pred_current) ** 2).mean()
+        
+        # Negative MSE as log probability (higher similarity = higher log prob)
+        log_prob = -mse
+        log_probs.append(log_prob)
     
-    # Weight the log_prob by the mean advantage (representing all rollouts)
-    loss = -(log_prob * advantage_rewards.detach().mean())
-    # Backprop (gradients flow to unfrozen to_out parameters!)
+    # Stack log probabilities and weight by advantages
+    log_probs = torch.stack(log_probs)  # [num_rollouts]
+    
+    # Policy gradient loss: -E[log_prob * advantage]
+    # Higher advantage rollouts should have higher log_prob (lower MSE)
+    # This pushes the model toward producing outputs similar to high-reward rollouts
+    loss = -(log_probs * advantage_rewards).mean()
+    
+    print(f" [Loss={loss.item():.6f}]", end="")
+    
+    # Backprop
     loss.backward()
     
     # Track gradient norms BEFORE clipping
@@ -335,7 +478,7 @@ for i, t in enumerate(timesteps):
     model.zero_grad()
     
     # Delete intermediate tensors
-    del loss, log_prob, noise_pred_for_loss, latents_for_loss
+    del loss, log_probs, noise_pred_current, latents_for_loss, rollout_noise_preds
     torch.cuda.empty_cache()
           
     # ========================================================================
@@ -413,11 +556,17 @@ with torch.no_grad():
         conditioning_mask=None,
         t=timesteps[-1],
         extra_step_kwargs={},
+        stochastic_sampling=True,  # CRITICAL: Match rollout setting for color!
         return_x0=True
     )
     
     # Decode to video
     print("Decoding final video...")
+    print(f"  [DEBUG] x0_final latent stats:")
+    print(f"    Shape: {x0_final.shape}")
+    print(f"    Min: {x0_final.min():.4f}, Max: {x0_final.max():.4f}, Mean: {x0_final.mean():.4f}")
+    print(f"    Std: {x0_final.std():.4f}")
+    
     final_video = decode_x0_to_video(
         x0_final,
         pipeline,
@@ -427,8 +576,9 @@ with torch.no_grad():
         is_patchified=True,
     )
     
-    # Save video to file
-    output_filename = f"outputs/final_video_{timestamp}.mp4"
+    # Save video to file in grpo/ folder
+    os.makedirs("grpo", exist_ok=True)  # Create grpo folder if it doesn't exist
+    output_filename = f"grpo/final_video_{timestamp}.mp4"
     
     # Convert tensor to numpy for saving
     import numpy as np
@@ -442,9 +592,24 @@ with torch.no_grad():
     print(f"    Min: {video_np.min():.4f}, Max: {video_np.max():.4f}, Mean: {video_np.mean():.4f}")
     print(f"    Per-channel: R={video_np[:, 0].mean():.4f}, G={video_np[:, 1].mean():.4f}, B={video_np[:, 2].mean():.4f}")
     
+    # Check color saturation
+    channel_std = np.std([video_np[:, 0].mean(), video_np[:, 1].mean(), video_np[:, 2].mean()])
+    print(f"    Channel std dev: {channel_std:.4f} (low = grayscale)")
+    
     video_np = np.transpose(video_np, (0, 2, 3, 1))  # [num_frames, H, W, 3]
-    # Video is already in [0, 1] range from decode_x0_to_video
+    
+    # Video is already in [0, 1] range from image_processor.postprocess()
+    # No additional normalization needed - this was washing out colors!
+    print(f"  [INFO] Video already normalized to [0, 1] by image_processor")
+    print(f"    Current range: [{video_np.min():.4f}, {video_np.max():.4f}]")
+    
+    # Directly convert to uint8 (preserve original color distribution)
     video_np = (video_np * 255).clip(0, 255).astype(np.uint8)
+    
+    # Final check on uint8 values
+    print(f"  [DEBUG] Final uint8 stats:")
+    print(f"    Min: {video_np.min()}, Max: {video_np.max()}, Mean: {video_np.mean():.1f}")
+    print(f"    Per-channel uint8: R={video_np[:, :, :, 0].mean():.1f}, G={video_np[:, :, :, 1].mean():.1f}, B={video_np[:, :, :, 2].mean():.1f}")
     
     # Save as MP4 with explicit format and quality settings
     writer = imageio.get_writer(

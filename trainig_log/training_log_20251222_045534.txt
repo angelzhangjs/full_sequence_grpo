@@ -4,7 +4,9 @@ Logging to: training_log_20251222_045534.txt
 ======================================================================
 
 Downloading ltxv-2b-0.9.8-distilled.safetensors...
-Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|##########| 2/2 [00:00<00:00, 55.02it/s]
+
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]
+Loading checkpoint shards: 100%|##########| 2/2 [00:00<00:00, 55.02it/s]
 ✅ Pipeline loaded!
 
 Timesteps: 20 steps [1.0000 → 0.1830]

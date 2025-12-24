@@ -1,0 +1,16 @@
+A red apple falls from a tree branch, accelerating downward and landing on grass below.
+A basketball drops from shoulder height, bounces several times with decreasing height, and rolls to a stop.
+Two billiard balls collide head-on, the moving ball stops completely while the stationary ball rolls forward.
+A soccer ball is kicked at 45 degrees, following a parabolic arc through the air before landing.
+A pendulum swings back and forth with decreasing amplitude, gradually coming to rest.
+A marble rolls down a curved track, speeding up as it descends and slowing on the upslope.
+Ripples spread in concentric circles from where a pebble drops into still water.
+A Newton's cradle with five silver balls, the end ball swings and transfers momentum through the chain.
+A yo-yo spins at the end of its string, then climbs back up as the string winds.
+A spring with a mass attached oscillates up and down in simple harmonic motion.
+Smoke rises from incense in smooth laminar flow, then transitions to turbulent swirls.
+A coin spins on a table, wobbling faster as it loses energy before falling flat.
+Dominos fall in sequence, each transferring momentum to the next in a chain reaction.
+A Slinky walks down stairs, one coil at a time in a mesmerizing cascade.
+A water droplet falls from a faucet, stretching into a teardrop shape before splashing on the surface.
+
