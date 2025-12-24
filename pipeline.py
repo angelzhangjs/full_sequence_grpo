@@ -167,30 +167,242 @@ latent_shape = (1, pipeline.vae.config.latent_channels, latent_frames, latent_he
 print(f"Latent shape: {latent_shape}\n")
 
 # ============================================================================
-# unfreeze the model
+# Choose Unfreezing Method: LoRA or Traditional
 # ============================================================================
+"""
 
-# freeze all parameters in the model first
+# Freeze all parameters first
 for param in model.parameters():
     param.requires_grad = False
 
-# unfreeze the parameters of the output projection layer of the transformer 
+# Configuration
+TOTAL_BLOCKS = 28  # LTX-Video has 28 transformer blocks (0-27)
+ATTN1_NUM_BLOCKS = 5  # Unfreeze self-attention in last 5 blocks
+ATTN2_TARGET_BLOCK = 27  # Unfreeze cross-attention in last block only
+
+attn1_start_block = TOTAL_BLOCKS - ATTN1_NUM_BLOCKS  # Block 23
+
 unfrozen_params = []
+attn1_count = 0
+attn2_count = 0
+
+print(f"\n🎯 Unfreezing Strategy:")
+print(f"   Self-Attention (attn1): Blocks {attn1_start_block}-{TOTAL_BLOCKS-1} (last {ATTN1_NUM_BLOCKS} blocks)")
+print(f"   Cross-Attention (attn2): Block {ATTN2_TARGET_BLOCK} only\n")
+
 for name, param in model.named_parameters():
-    if "proj_out" in name:  # Fixed: model uses "proj_out" not "out_proj"
+    should_unfreeze = False
+    layer_type = None
+    
+    # Strategy 1: Unfreeze self-attention in blocks 23-27
+    for block_idx in range(attn1_start_block, TOTAL_BLOCKS):
+        if f"blocks.{block_idx}." in name or f"transformer_blocks.{block_idx}." in name:
+            # Look for self-attention patterns
+            if any(pattern in name for pattern in [
+                "attn.to_q", "attn.to_k", "attn.to_v", "attn.to_out",
+                "attn1.q_proj", "attn1.k_proj", "attn1.v_proj", "attn1.out_proj",
+                "self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj", "self_attn.out_proj"
+            ]):
+                # Make sure it's NOT cross-attention
+                if "attn2" not in name and "cross" not in name:
+                    should_unfreeze = True
+                    layer_type = "attn1"
+                    attn1_count += 1
+                    break
+    
+    # Strategy 2: Unfreeze cross-attention ONLY in block 27
+    if f"blocks.{ATTN2_TARGET_BLOCK}." in name or f"transformer_blocks.{ATTN2_TARGET_BLOCK}." in name:
+        if any(pattern in name for pattern in [
+            "attn2.q_proj", "attn2.k_proj", "attn2.v_proj", "attn2.out_proj",
+            "cross_attn.q_proj", "cross_attn.k_proj", "cross_attn.v_proj", "cross_attn.out_proj"
+        ]):
+            should_unfreeze = True
+            layer_type = "attn2"
+            attn2_count += 1
+    
+    if should_unfreeze:
         param.requires_grad = True
         unfrozen_params.append(param)
-        print(f"  Unfreezing: {name} - {param.shape}")
+        print(f"  Unfreezing [{layer_type:5s}]: {name} - {param.shape}")
 
-# Safety check
+# Safety check - raise error if attention layers not found
 if len(unfrozen_params) == 0:
-    raise ValueError("No parameters were unfrozen! Check parameter names.")
+    print("\n❌ ERROR: No attention layers found!")
+    print("\n🔍 Available layer names (sample):")
+    sample_count = 0
+    for name, _ in model.named_parameters():
+        if 'block' in name.lower() and sample_count < 10:
+            print(f"     {name}")
+            sample_count += 1
+    
+    raise ValueError(
+        f"No attention parameters were unfrozen!\n"
+        f"   Looking for: Self-attention (attn1) in blocks {attn1_start_block}-{TOTAL_BLOCKS-1}\n"
+        f"                Cross-attention (attn2) in block {ATTN2_TARGET_BLOCK}\n"
+        f"   Check layer naming patterns above and adjust the code."
+    )
 
-print(f"\n✅ Total unfrozen parameters: {len(unfrozen_params)}")
-print(f"   Unfrozen params count: {sum(p.numel() for p in unfrozen_params):,}\n")
+# Summary
+print(f"\n✅ Unfreezing Summary:")
+print(f"   Self-attention (attn1) params: {attn1_count}")
+print(f"   Cross-attention (attn2) params: {attn2_count}")
+print(f"   Total unfrozen parameters: {len(unfrozen_params)}")
+print(f"   Total param count: {sum(p.numel() for p in unfrozen_params):,}")
 
-optimizer = torch.optim.Adam(unfrozen_params, # Only these will be updated by the optimizer
-                            lr=1e-4, betas=(0.9, 0.95), weight_decay=0.01) # learning rate and betas
+# Adjust learning rate based on number of parameters
+total_params = sum(p.numel() for p in unfrozen_params)
+if total_params > 10_000_000:  # > 10M params
+    lr = 3e-5
+    print(f"   Using lower LR for many params: {lr:.2e}")
+elif total_params > 1_000_000:  # > 1M params
+    lr = 5e-5
+    print(f"   Using moderate LR: {lr:.2e}")
+else:
+    lr = 1e-4
+    print(f"   Using standard LR: {lr:.2e}")
+
+print()
+
+optimizer = torch.optim.Adam(
+    unfrozen_params,
+    lr=lr,
+    betas=(0.9, 0.95),
+    weight_decay=0.01
+)
+"""
+USE_LORA = False  # Set to True to use LoRA (requires: pip install --upgrade transformers>=4.40)
+
+if USE_LORA:
+    # ========================================================================
+    # LoRA Method - Stable fine-tuning for multiple attention layers
+    # ========================================================================
+    from lora_config import apply_lora_to_model, get_lora_config_motion_focused
+    
+    print("\n" + "="*70)
+    print("APPLYING LORA FOR STABLE FINE-TUNING")
+    print("="*70 + "\n")
+    
+    # Choose configuration:
+    config = get_lora_config_motion_focused()  # Self-attn in 5 blocks (motion/physics)
+    # config = get_lora_config_lightweight()     # Self-attn in 2 blocks (fast testing)
+    # config = get_lora_config_comprehensive()    # Both attn1+attn2 in 5 blocks (full)
+    # config = get_lora_config_text_focused()     # Cross-attn in 1 block (text conditioning)
+    
+    # Apply LoRA to model
+    model, recommended_lr = apply_lora_to_model(model, **config)
+    pipeline.transformer = model  # Update pipeline reference
+    
+    # Create optimizer with LoRA-recommended LR
+    optimizer = torch.optim.Adam(
+        model.parameters(),  # PEFT handles trainable param filtering
+        lr=recommended_lr,
+        betas=(0.9, 0.95),
+        weight_decay=0.01
+    )
+    
+    print(f"✅ LoRA initialized with LR={recommended_lr:.2e}\n")
+
+else:
+    # ========================================================================
+    # Traditional Method - Direct unfreezing of attention layers
+    # ========================================================================
+    print("\n" + "="*70)
+    print("TRADITIONAL UNFREEZING (Attention Layers)")
+    print("="*70 + "\n")
+    
+    # Freeze all parameters first
+    for param in model.parameters():
+        param.requires_grad = False
+    
+    # Configuration
+    TOTAL_BLOCKS = 28  # LTX-Video has 28 transformer blocks (0-27)
+    ATTN1_NUM_BLOCKS = 4  # Unfreeze self-attention in last 4 blocks
+    ATTN2_TARGET_BLOCK = 27  # Unfreeze cross-attention in last block only
+    
+    attn1_start_block = TOTAL_BLOCKS - ATTN1_NUM_BLOCKS  # Block 23
+    
+    unfrozen_params = []
+    attn1_count = 0
+    attn2_count = 0
+    
+    print(f"🎯 Unfreezing Strategy:")
+    print(f"   Self-Attention (attn1): Blocks {attn1_start_block}-{TOTAL_BLOCKS-1} (last {ATTN1_NUM_BLOCKS} blocks)")
+    print(f"   Cross-Attention (attn2): Block {ATTN2_TARGET_BLOCK} only\n")
+    
+    for name, param in model.named_parameters():
+        should_unfreeze = False
+        layer_type = None
+        
+        # Strategy 1: Unfreeze self-attention (attn1) in blocks 23-27
+        for block_idx in range(attn1_start_block, TOTAL_BLOCKS):
+            if f"transformer_blocks.{block_idx}." in name:
+                # Look for self-attention patterns (based on actual layer names)
+                if any(pattern in name for pattern in [
+                    "attn1.to_q", "attn1.to_k", "attn1.to_v", "attn1.to_out"
+                ]):
+                    should_unfreeze = True
+                    layer_type = "attn1"
+                    attn1_count += 1
+                    break
+        
+        # Strategy 2: Unfreeze cross-attention (attn2) ONLY in block 27
+        if f"transformer_blocks.{ATTN2_TARGET_BLOCK}." in name:
+            if any(pattern in name for pattern in [
+                "attn2.to_q", "attn2.to_k", "attn2.to_v", "attn2.to_out"
+            ]):
+                should_unfreeze = True
+                layer_type = "attn2"
+                attn2_count += 1
+        
+        if should_unfreeze:
+            param.requires_grad = True
+            unfrozen_params.append(param)
+            print(f"  Unfreezing [{layer_type:5s}]: {name} - {param.shape}")
+    
+    # Safety check - raise error if attention layers not found
+    if len(unfrozen_params) == 0:
+        print("\n❌ ERROR: No attention layers found!")
+        print("\n🔍 Available layer names (sample):")
+        sample_count = 0
+        for name, _ in model.named_parameters():
+            if 'block' in name.lower() and sample_count < 10:
+                print(f"     {name}")
+                sample_count += 1
+        
+        raise ValueError(
+            f"No attention parameters were unfrozen!\n"
+            f"   Looking for: Self-attention (attn1) in blocks {attn1_start_block}-{TOTAL_BLOCKS-1}\n"
+            f"                Cross-attention (attn2) in block {ATTN2_TARGET_BLOCK}\n"
+            f"   Check layer naming patterns above and adjust the code."
+        )
+    
+    # Summary
+    print(f"\n✅ Unfreezing Summary:")
+    print(f"   Self-attention (attn1) params: {attn1_count}")
+    print(f"   Cross-attention (attn2) params: {attn2_count}")
+    print(f"   Total unfrozen parameters: {len(unfrozen_params)}")
+    print(f"   Total param count: {sum(p.numel() for p in unfrozen_params):,}")
+    
+    # Adjust learning rate based on number of parameters
+    total_params = sum(p.numel() for p in unfrozen_params)
+    if total_params > 10_000_000:  # > 10M params
+        lr = 1e-4  # Increased from 3e-5 for better gradient flow
+        print(f"   Using LR for attention layers: {lr:.2e}")
+    elif total_params > 1_000_000:  # > 1M params
+        lr = 1e-4
+        print(f"   Using moderate LR: {lr:.2e}")
+    else:
+        lr = 1e-4
+        print(f"   Using standard LR: {lr:.2e}")
+    
+    print()
+    
+    optimizer = torch.optim.Adam(
+        unfrozen_params,
+        lr=lr,
+        betas=(0.9, 0.95),
+        weight_decay=0.01
+    )
 # ============================================================================
 # Initialize Latents
 # ============================================================================
@@ -611,14 +823,16 @@ with torch.no_grad():
     print(f"    Min: {video_np.min()}, Max: {video_np.max()}, Mean: {video_np.mean():.1f}")
     print(f"    Per-channel uint8: R={video_np[:, :, :, 0].mean():.1f}, G={video_np[:, :, :, 1].mean():.1f}, B={video_np[:, :, :, 2].mean():.1f}")
     
-    # Save as MP4 with explicit format and quality settings
+    # Save as MP4 with high quality settings
     writer = imageio.get_writer(
         output_filename, 
         fps=frame_rate,
         codec='libx264',
-        quality=8,  # Higher quality
+        quality=10,  # Maximum quality (1-10 scale)
         pixelformat='yuv420p',  # Standard color format
-        macro_block_size=1
+        macro_block_size=1,
+        bitrate='8000k',  # High bitrate for crisp output
+        output_params=['-crf', '18']  # Constant Rate Factor: 18 = visually lossless quality
     )
     for frame in video_np:
         writer.append_data(frame)
