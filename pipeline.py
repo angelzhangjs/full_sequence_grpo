@@ -11,8 +11,13 @@ from ltx_video.models.autoencoders.vae_encode import latent_to_pixel_coords
 from huggingface_hub import hf_hub_download
 import os
 import sys
+import copy
 from datetime import datetime
-from helper import decode_x0_to_video, reward_function
+from helper import decode_x0_to_video
+from reward_functions import reward_function, clear_model_cache
+
+# Clear any cached models to ensure proper dtype loading
+clear_model_cache()
 import numpy as np
 import random
 
@@ -64,7 +69,7 @@ print("="*70 + "\n")
 # Load Pipeline
 # ============================================================================
 # Using 2B model for faster training and lower memory usage
-config_path = "configs/ltxv-2b-0.9.6-dev.yaml"
+config_path = "configs/ltxv-2b-0.9.6-dev-grpo.yaml"  # Using GRPO config (no prompt enhancer)
 cfg = load_pipeline_config(config_path)
 ckpt_name = cfg["checkpoint_path"]   # load the checkpoint name from the config file
 
@@ -108,7 +113,14 @@ vae = pipeline.vae
 # Timesteps
 scheduler.set_timesteps(20, device="cuda")
 timesteps = scheduler.timesteps
-print(f"Timesteps: {len(timesteps)} steps [{timesteps[0]:.4f} → {timesteps[-1]:.4f}]\n")
+
+# GRPO only on last N timesteps (fine details and motion)
+# Early timesteps (high noise) are just rough structure, don't need GRPO
+NUM_GRPO_STEPS = 15  # Increased from 10 for more training
+timesteps_for_grpo = timesteps[-NUM_GRPO_STEPS:]  # Last 10 steps
+print(f"Total timesteps: {len(timesteps)} steps [{timesteps[0]:.4f} → {timesteps[-1]:.4f}]")
+print(f"GRPO training on: Last {NUM_GRPO_STEPS} steps [{timesteps_for_grpo[0]:.4f} → {timesteps_for_grpo[-1]:.4f}]")
+print(f"Skipping first {len(timesteps) - NUM_GRPO_STEPS} steps (rough structure only)\n")
 
 # Read prompt from file (in same directory as script)
 prompt_file = "prompt.txt"
@@ -175,50 +187,39 @@ print(f"Latent shape: {latent_shape}\n")
 for param in model.parameters():
     param.requires_grad = False
 
-# Configuration
+# Configuration - CONSERVATIVE: Only unfreeze LAST 2 blocks (preserve baseline!)
 TOTAL_BLOCKS = 28  # LTX-Video has 28 transformer blocks (0-27)
-ATTN1_NUM_BLOCKS = 5  # Unfreeze self-attention in last 5 blocks
-ATTN2_TARGET_BLOCK = 27  # Unfreeze cross-attention in last block only
+BLOCKS_TO_UNFREEZE = [26, 27]  # Only last 2 blocks - minimal, safe changes
+UNFREEZE_CROSS_ATTN = False  # Keep frozen
 
-attn1_start_block = TOTAL_BLOCKS - ATTN1_NUM_BLOCKS  # Block 23
+# Strategy: Preserve what works (baseline), only refine final details
+print("\n⚠️  CONSERVATIVE MODE: Minimal unfreezing to preserve baseline quality")
 
 unfrozen_params = []
 attn1_count = 0
 attn2_count = 0
 
-print(f"\n🎯 Unfreezing Strategy:")
-print(f"   Self-Attention (attn1): Blocks {attn1_start_block}-{TOTAL_BLOCKS-1} (last {ATTN1_NUM_BLOCKS} blocks)")
-print(f"   Cross-Attention (attn2): Block {ATTN2_TARGET_BLOCK} only\n")
+print(f"\n🎯 CONSERVATIVE STRATEGY (Preserve Baseline):")
+print(f"   Self-Attention: Only blocks {BLOCKS_TO_UNFREEZE}")
+print(f"   Goal: Minimal changes, preserve baseline quality")
+print(f"   Cross-Attention: {'Yes' if UNFREEZE_CROSS_ATTN else 'No'}\n")
 
 for name, param in model.named_parameters():
     should_unfreeze = False
     layer_type = None
     
-    # Strategy 1: Unfreeze self-attention in blocks 23-27
-    for block_idx in range(attn1_start_block, TOTAL_BLOCKS):
-        if f"blocks.{block_idx}." in name or f"transformer_blocks.{block_idx}." in name:
-            # Look for self-attention patterns
+    # CONSERVATIVE: Only unfreeze specific blocks (26, 27)
+    for block_idx in BLOCKS_TO_UNFREEZE:
+        if f"transformer_blocks.{block_idx}." in name:
+            # Only self-attention
             if any(pattern in name for pattern in [
-                "attn.to_q", "attn.to_k", "attn.to_v", "attn.to_out",
-                "attn1.q_proj", "attn1.k_proj", "attn1.v_proj", "attn1.out_proj",
-                "self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj", "self_attn.out_proj"
+                "attn1.to_q", "attn1.to_k", "attn1.to_v", "attn1.to_out"
             ]):
-                # Make sure it's NOT cross-attention
-                if "attn2" not in name and "cross" not in name:
+                if "attn2" not in name:
                     should_unfreeze = True
                     layer_type = "attn1"
                     attn1_count += 1
                     break
-    
-    # Strategy 2: Unfreeze cross-attention ONLY in block 27
-    if f"blocks.{ATTN2_TARGET_BLOCK}." in name or f"transformer_blocks.{ATTN2_TARGET_BLOCK}." in name:
-        if any(pattern in name for pattern in [
-            "attn2.q_proj", "attn2.k_proj", "attn2.v_proj", "attn2.out_proj",
-            "cross_attn.q_proj", "cross_attn.k_proj", "cross_attn.v_proj", "cross_attn.out_proj"
-        ]):
-            should_unfreeze = True
-            layer_type = "attn2"
-            attn2_count += 1
     
     if should_unfreeze:
         param.requires_grad = True
@@ -386,8 +387,8 @@ else:
     # Adjust learning rate based on number of parameters
     total_params = sum(p.numel() for p in unfrozen_params)
     if total_params > 10_000_000:  # > 10M params
-        lr = 1e-4  # Increased from 3e-5 for better gradient flow
-        print(f"   Using LR for attention layers: {lr:.2e}")
+        lr = 1e-5  # VERY gentle LR to preserve baseline quality!
+        print(f"   Using GENTLE LR to preserve baseline: {lr:.2e}")
     elif total_params > 1_000_000:  # > 1M params
         lr = 1e-4
         print(f"   Using moderate LR: {lr:.2e}")
@@ -404,7 +405,7 @@ else:
         weight_decay=0.01
     )
 # ============================================================================
-# Initialize Latents
+# Initialize Latents and Run Non-GRPO Steps
 # ============================================================================
 latents = pipeline.prepare_latents(
     latents=None,
@@ -415,7 +416,6 @@ latents = pipeline.prepare_latents(
     device=torch.device("cuda"),
     generator=None,
 )
-
 
 # Patchify latents (now with correct 128 channels!)
 latents, latent_coords = pipeline.patchifier.patchify(latents)
@@ -432,6 +432,65 @@ pixel_coords = latent_to_pixel_coords(
 indices_grid = pixel_coords.to(torch.float32)
 indices_grid[:, 0] *= (1.0 / frame_rate)
 # ============================================================================
+# Create Frozen Baseline Model for GRPO
+# ============================================================================
+print("Creating frozen baseline model for GRPO comparison...")
+baseline_model = copy.deepcopy(model)
+baseline_model.eval()  # Set to eval mode
+# Freeze all parameters
+for param in baseline_model.parameters():
+    param.requires_grad = False
+print("✅ Baseline model frozen (will not be updated)\n")
+
+# ============================================================================
+# Run Standard Denoising for First N Steps (No GRPO)
+# ============================================================================
+# Run first (20 - 10) = 10 timesteps WITHOUT GRPO (just standard denoising)
+# This creates the rough structure before fine-tuning with GRPO
+print(f"{'='*70}")
+print("PHASE 1: Standard Denoising (Rough Structure)")
+print(f"{'='*70}\n")
+
+num_standard_steps = len(timesteps) - NUM_GRPO_STEPS
+for i, t in enumerate(timesteps[:num_standard_steps]):
+    print(f"Standard step {i+1:02d}/{num_standard_steps} | t={t:.4f}", end="")
+    
+    with torch.no_grad():
+        # Use baseline model for initial steps (more stable)
+        noise_pred = baseline_model(
+            latents,
+            indices_grid=indices_grid,
+            encoder_hidden_states=prompt_embeds,
+            encoder_attention_mask=prompt_attention_mask,
+            timestep=t,
+            return_dict=False,
+        )[0]
+        
+        # Standard denoising step (keep False here to avoid dtype issues)
+        latents = pipeline.denoising_step(
+            latents=latents,
+            noise_pred=noise_pred,
+            current_timestep=None,
+            conditioning_mask=None,
+            t=t,
+            extra_step_kwargs={},
+            stochastic_sampling=False,  
+            return_x0=False,  # Don't need x0 for standard steps
+        )
+        
+        # Ensure latents stay in bfloat16 (stochastic sampling might change dtype)
+        if latents.dtype != torch.bfloat16:
+            latents = latents.to(dtype=torch.bfloat16)
+        
+    print(" ✓")
+
+print(f"\n✅ Completed {num_standard_steps} standard denoising steps")
+print(f"   Latents shape: {latents.shape}")
+print(f"\n{'='*70}")
+print("PHASE 2: GRPO Fine-Tuning (Last {NUM_GRPO_STEPS} Steps)")
+print(f"{'='*70}\n")
+
+# ============================================================================
 # GRPO Training steps
 # ============================================================================
 # Track initial weights for comparison at the end
@@ -443,11 +502,50 @@ for name, param in model.named_parameters():
 print(f"📊 Tracking {len(initial_weights)} unfrozen parameters\n")
 
 num_rollouts = 3 
-for i, t in enumerate(timesteps):
-    print(f"Step {i+1:02d}/{len(timesteps)} | t={t:.4f}", end="")
+for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last 10 timesteps
+    print(f"GRPO Step {i+1:02d}/{len(timesteps_for_grpo)} | t={t:.4f}", end="")
         
     rollout_noise_preds = []  # Store noise predictions for later gradient computation
     rollout_rewards = []
+    
+    #####==========================================================
+    # STEP 0: Generate BASELINE from frozen model (for GRPO comparison)
+    #####==========================================================
+    with torch.no_grad():
+        baseline_noise_pred = baseline_model(
+            latents,
+            indices_grid=indices_grid,
+            encoder_hidden_states=prompt_embeds,
+            encoder_attention_mask=prompt_attention_mask,
+            timestep=t,
+            return_dict=False,
+        )[0]
+        
+        _, baseline_x0_est = pipeline.denoising_step(
+            latents=latents,
+            noise_pred=baseline_noise_pred,
+            current_timestep=None,
+            conditioning_mask=None,
+            t=t,
+            extra_step_kwargs={},
+            stochastic_sampling=True,  # ENABLED for diversity!
+            return_x0=True,
+        )
+        
+        baseline_video = decode_x0_to_video(
+            baseline_x0_est,
+            pipeline,
+            num_frames=num_frames,
+            height=height,
+            width=width,
+            is_patchified=True,
+        )
+        baseline_reward = reward_function(baseline_video, prompt=prompt)
+        print(f" [Baseline reward: {baseline_reward.item():.4f}]", end="")
+        
+        # Clear baseline from memory
+        del baseline_video, baseline_x0_est, baseline_noise_pred
+        torch.cuda.empty_cache()
         
     for rollout_index in range(num_rollouts):
         #####==========================================================
@@ -456,7 +554,7 @@ for i, t in enumerate(timesteps):
         with torch.no_grad():  # No gradients during rollout sampling
             # IMPROVED: Stronger perturbation for GRPO diversity
             if rollout_index > 0:
-                noise_scale = 0.25  # Increased to 0.25 for better diversity (was 0.5, then 0.1, then 0.15)
+                noise_scale = 0.5  # Increased to 0.5 for MUCH better diversity and stronger learning signal
                 latents_perturbed = latents + torch.randn_like(latents) * noise_scale
             else:
                 latents_perturbed = latents
@@ -487,7 +585,7 @@ for i, t in enumerate(timesteps):
                 conditioning_mask=None,
                 t=t,
                 extra_step_kwargs={},
-                stochastic_sampling=False,  # Enable for color variation
+                stochastic_sampling=True,  # ENABLED for diversity (critical for GRPO!)
                 return_x0=True,
             )
             
@@ -502,7 +600,9 @@ for i, t in enumerate(timesteps):
                     width=width,
                     is_patchified=True,
                 )
-            reward = reward_function(video_x0)
+            # Ensure video is float32 for reward function (CLIP/DINO expect float32)
+            video_x0 = video_x0.float() if video_x0.dtype == torch.bfloat16 else video_x0
+            reward = reward_function(video_x0, prompt=prompt)
             rollout_rewards.append(reward)
             
             ###================================================================== 
@@ -565,14 +665,16 @@ for i, t in enumerate(timesteps):
                     conditioning_mask=None,
                     t=t,
                     extra_step_kwargs={},
-                    stochastic_sampling=False,  # Enable for color variation
+                    stochastic_sampling=True,  # ENABLED for diversity (critical for GRPO!)
                     return_x0=True,
                 )
                 
                 video_x0 = decode_x0_to_video(
                     x0_est, pipeline, num_frames, height, width, is_patchified=True
                 )
-                reward = reward_function(video_x0)
+                # Ensure float32 for reward function
+                video_x0 = video_x0.float() if video_x0.dtype == torch.bfloat16 else video_x0
+                reward = reward_function(video_x0, prompt=prompt)
                 rollout_rewards.append(reward)
                 
                 del video_x0, x0_est
@@ -593,18 +695,26 @@ for i, t in enumerate(timesteps):
     else:
         print(" ⚠️  LOW (using anyway)", end="")
     
-    # Compute advantages
+    # Compute advantages using STANDARD GRPO (compare to group mean)
     mean_reward = rewards.mean()
     std_reward = rewards.std()
     
-    # Group normalization: compute the advantage reward for each rollout
-    advantage_rewards = (rewards - mean_reward) / (std_reward + 1e-4)
-    print("Advantages:")
+    # Standard GRPO: advantages relative to group mean
+    if std_reward > 1e-8:
+        advantage_rewards = (rewards - mean_reward) / (std_reward + 1e-4)
+    else:
+        advantage_rewards = rewards - mean_reward
+    
+    print(f"Rollout Statistics:")
+    print(f"  Mean reward: {mean_reward.item():.4f}")
+    print(f"  Std reward: {std_reward.item():.4f}")
+    print(f"  Baseline: {baseline_reward.item():.4f} (reference only)")
+    print(f"\nAdvantages (vs group mean={mean_reward.item():.4f}):")
     for k in range(num_rollouts):
         print(f"  Rollout {k}: reward={rewards[k]:.4f}, advantage={advantage_rewards[k]:.4f}")
     
     # Clear rollout data to free memory before backward pass
-    del rollout_rewards, rewards, mean_reward, std_reward
+    del rollout_rewards, rewards, mean_reward
     torch.cuda.empty_cache()
     
     #=======================================================================
@@ -822,6 +932,7 @@ with torch.no_grad():
     print(f"  [DEBUG] Final uint8 stats:")
     print(f"    Min: {video_np.min()}, Max: {video_np.max()}, Mean: {video_np.mean():.1f}")
     print(f"    Per-channel uint8: R={video_np[:, :, :, 0].mean():.1f}, G={video_np[:, :, :, 1].mean():.1f}, B={video_np[:, :, :, 2].mean():.1f}")
+    
     
     # Save as MP4 with high quality settings
     writer = imageio.get_writer(

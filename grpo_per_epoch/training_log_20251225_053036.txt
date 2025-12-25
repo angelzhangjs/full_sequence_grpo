@@ -1,0 +1,88 @@
+======================================================================
+LTX-VIDEO PER-EPOCH GRPO TRAINING
+Logging to: grpo_per_epoch/training_log_20251225_053036.txt
+======================================================================
+
+Loading LTX-Video pipeline...
+Downloading ltxv-2b-0.9.6-dev-04-25.safetensors...
+✅ CUDA memory allocator configured
+✅ Pipeline loaded!
+
+Prompt: 'A bright red ball falling and bouncing down a wooden staircase, moving downward and hitting each lower step sequentially, descending to the bottom, vibrant colors.'
+
+Video: 768×512, 65 frames @ 16fps
+
+⚡ MEMORY OPTIMIZATION (Required for 80GB GPU):
+   Training rollouts: NO decode (latent rewards only)
+   Memory per rollout: ~1 GB (vs 45 GB with decode)
+   Reward type: Latent-based (variance, magnitude, consistency)
+   ✅ Baseline video: Full decode (all 65 frames)
+   ✅ Final video: Full decode (all 65 frames)
+   Both output videos are high quality!
+
+Latent shape: (1, 128, 9, 64, 96)
+
+======================================================================
+UNFREEZING ATTENTION LAYERS
+======================================================================
+
+  Unfreezing [attn1]: transformer_blocks.24.attn1.to_q.weight
+  Unfreezing [attn1]: transformer_blocks.24.attn1.to_q.bias
+  Unfreezing [attn1]: transformer_blocks.24.attn1.to_k.weight
+  Unfreezing [attn1]: transformer_blocks.24.attn1.to_k.bias
+  Unfreezing [attn1]: transformer_blocks.24.attn1.to_v.weight
+  Unfreezing [attn1]: transformer_blocks.24.attn1.to_v.bias
+  Unfreezing [attn1]: transformer_blocks.24.attn1.to_out.0.weight
+  Unfreezing [attn1]: transformer_blocks.24.attn1.to_out.0.bias
+  Unfreezing [attn1]: transformer_blocks.25.attn1.to_q.weight
+  Unfreezing [attn1]: transformer_blocks.25.attn1.to_q.bias
+  Unfreezing [attn1]: transformer_blocks.25.attn1.to_k.weight
+  Unfreezing [attn1]: transformer_blocks.25.attn1.to_k.bias
+  Unfreezing [attn1]: transformer_blocks.25.attn1.to_v.weight
+  Unfreezing [attn1]: transformer_blocks.25.attn1.to_v.bias
+  Unfreezing [attn1]: transformer_blocks.25.attn1.to_out.0.weight
+  Unfreezing [attn1]: transformer_blocks.25.attn1.to_out.0.bias
+  Unfreezing [attn1]: transformer_blocks.26.attn1.to_q.weight
+  Unfreezing [attn1]: transformer_blocks.26.attn1.to_q.bias
+  Unfreezing [attn1]: transformer_blocks.26.attn1.to_k.weight
+  Unfreezing [attn1]: transformer_blocks.26.attn1.to_k.bias
+  Unfreezing [attn1]: transformer_blocks.26.attn1.to_v.weight
+  Unfreezing [attn1]: transformer_blocks.26.attn1.to_v.bias
+  Unfreezing [attn1]: transformer_blocks.26.attn1.to_out.0.weight
+  Unfreezing [attn1]: transformer_blocks.26.attn1.to_out.0.bias
+  Unfreezing [attn1]: transformer_blocks.27.attn1.to_q.weight
+  Unfreezing [attn1]: transformer_blocks.27.attn1.to_q.bias
+  Unfreezing [attn1]: transformer_blocks.27.attn1.to_k.weight
+  Unfreezing [attn1]: transformer_blocks.27.attn1.to_k.bias
+  Unfreezing [attn1]: transformer_blocks.27.attn1.to_v.weight
+  Unfreezing [attn1]: transformer_blocks.27.attn1.to_v.bias
+  Unfreezing [attn1]: transformer_blocks.27.attn1.to_out.0.weight
+  Unfreezing [attn1]: transformer_blocks.27.attn1.to_out.0.bias
+  Unfreezing [attn2]: transformer_blocks.27.attn2.to_q.weight
+  Unfreezing [attn2]: transformer_blocks.27.attn2.to_q.bias
+  Unfreezing [attn2]: transformer_blocks.27.attn2.to_k.weight
+  Unfreezing [attn2]: transformer_blocks.27.attn2.to_k.bias
+  Unfreezing [attn2]: transformer_blocks.27.attn2.to_v.weight
+  Unfreezing [attn2]: transformer_blocks.27.attn2.to_v.bias
+  Unfreezing [attn2]: transformer_blocks.27.attn2.to_out.0.weight
+  Unfreezing [attn2]: transformer_blocks.27.attn2.to_out.0.bias
+
+✅ Unfrozen 40 parameters
+   Total: 83,927,040
+
+⚠️ bitsandbytes not installed, using standard Adam (uses more VRAM)
+   Install with: pip install bitsandbytes
+Creating frozen baseline model...
+✅ Baseline frozen and moved to CPU (saves ~8GB VRAM)
+
+======================================================================
+PER-EPOCH GRPO TRAINING
+======================================================================
+
+Configuration:
+  Epochs: 3
+  Rollouts per epoch: 3
+  Total rollouts: 9
+  Timesteps per generation: 20
+
+Generating baseline video (frozen model)...

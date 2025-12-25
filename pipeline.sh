@@ -47,7 +47,7 @@ echo "======================================================================"
 echo ""
 echo "Running inference with:"
 echo "  Prompt: \"$PROMPT\""
-echo "  Config: ltxv-2b-0.9.8-distilled.yaml"
+echo "  Config: ltxv-2b-0.9.8-distilled-no-enhancer.yaml (no Florence-2)"
 echo "  Frames: 125"
 echo "  Seed: 42"
 echo ""
@@ -55,7 +55,7 @@ echo ""
 cd ltx_video
 
 python run_inference.py \
-    --pipeline_config configs/ltxv-2b-0.9.8-distilled.yaml \
+    --pipeline_config configs/ltxv-2b-0.9.8-distilled-no-enhancer.yaml \
     --prompt "$PROMPT" \
     --output_path ../baseline \
     --height 512 \

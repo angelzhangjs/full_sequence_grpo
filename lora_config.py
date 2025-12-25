@@ -18,7 +18,6 @@ Usage:
 from peft import get_peft_model, LoraConfig, TaskType
 import torch.nn as nn
 
-
 def apply_lora_to_model(
     model,
     target_layers='self_attn',  # Options: 'self_attn', 'cross_attn', 'both', 'proj_out'
