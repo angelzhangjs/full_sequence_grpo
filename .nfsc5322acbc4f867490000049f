@@ -1,0 +1,48 @@
+#!/bin/bash
+# Run LTX-Video Per-Epoch GRPO Training
+
+set -e
+
+echo "======================================================================"
+echo "CogVideoX PER-EPOCH GRPO TRAINING"
+echo "======================================================================"
+echo ""
+
+cd /home/ubuntu/angel-research/full_sequence_grpo
+
+PROMPT=$(cat prompt.txt | head -1)
+echo "📝 Prompt: \"$PROMPT\""
+echo ""
+
+echo "Configuration:"
+echo "  - Model: LTX-Video-2B"
+echo "  - Training: Per-epoch GRPO (3 epochs)"
+echo "  - Rollouts per epoch: 3"
+echo "  - Total rollouts: 9 (3×3)"
+echo "  - Training rewards: Latent-based (no decode)"
+echo "  - Final output: ALL 32 frames (full quality)"
+echo "  - Output folder: grpo_per_epoch/"
+echo ""
+
+python pipeline_per_epoch.py
+
+if [ $? -eq 0 ]; then
+    echo ""
+    echo "======================================================================"
+    echo "✅ Per-Epoch GRPO Training Complete!"
+    echo "======================================================================"
+    echo ""
+    echo "📂 Outputs:"
+    echo "   Baseline: grpo_per_epoch/baseline_*.mp4"
+    echo "   Final:    grpo_per_epoch/final_video_*.mp4"
+    echo "   Log:      grpo_per_epoch/training_log_*.txt"
+    echo ""
+    echo "Compare with per-timestep GRPO:"
+    echo "   Per-timestep: grpo/final_video_*.mp4"
+    echo "   Per-epoch:    grpo_per_epoch/final_video_*.mp4"
+    echo ""
+else
+    echo "❌ Training failed!"
+    exit 1
+fi
+
