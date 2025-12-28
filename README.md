@@ -1,262 +1,125 @@
-# LTX-Video GRPO Training for Physics-Based Video Generation
-
-Deep reinforcement learning (GRPO) training for text-to-video diffusion models with physics-aware rewards.
-
-## 🎯 **Overview**
-
-This repository implements **Group Relative Policy Optimization (GRPO)** for training video diffusion models to generate physically realistic videos with proper motion dynamics.
-
-**Key Features:**
-- ✅ Per-timestep GRPO training for LTX-Video
-- ✅ Comprehensive reward functions (CLIP + DINO + Physics)
-- ✅ Baseline comparison to prevent quality degradation
-- ✅ Memory-optimized for 80GB GPUs
-- ✅ Supports multiple video generation models
-
----
-
-## 🚀 **Quick Start**
-
-### **Prerequisites**
-
-- Python 3.10+
-- CUDA 11.8+
-- GPU with 24GB+ VRAM (A100/A6000 recommended)
-- 64GB+ system RAM
-
-### **Installation**
-
-```bash
-# 1. Create conda environment
-conda create -n ltx-grpo python=3.10 -y
-conda activate ltx-grpo
-
-# 2. Install PyTorch with CUDA
-pip install torch==2.9.1 torchvision==0.24.1 --index-url https://download.pytorch.org/whl/cu118
-
-# 3. Install dependencies
-cd full_sequence_grpo
-pip install -r requirements.txt
-
-# 4. Install CLIP
-pip install git+https://github.com/openai/CLIP.git
-
-# 5. Install LTX-Video
-cd ltx_video
-pip install -e .
-cd ..
-```
-
-### **Run Training**
-
-```bash
-# Set your prompt
-echo "A bright red ball bouncing down stairs" > prompt.txt
-
-# Run GRPO training
-bash pipeline.sh
-```
-
-**Outputs:**
-- `grpo/final_video_*.mp4` - Trained model output
-- `baseline/video_output_*.mp4` - Pretrained baseline
-- `grpo/training_log_*.txt` - Training details
-
----
-
-## 📊 **Project Structure**
-
-```
-full_sequence_grpo/
-├── pipeline.py                  # Main GRPO training script
-├── reward_functions.py          # CLIP+DINO+Physics rewards
-├── helper.py                    # Video decoding utilities
-├── configs/                     # Model configurations
-│   └── ltxv-2b-0.9.6-dev-grpo.yaml
-├── grpo/                        # Training outputs
-├── baseline/                    # Baseline comparisons
-├── requirements.txt             # Package dependencies
-└── SETUP_INSTRUCTIONS.md        # Detailed setup guide
-```
-
----
-
-## 🎨 **Reward Functions**
-
-### **Multi-Modal Reward System:**
-
-1. **CLIP (Text-Video Alignment)**
-   - Measures semantic alignment with prompt
-   - Ensures video matches description
-
-2. **DINO (Object Tracking)**
-   - Tracks object consistency across frames
-   - Ensures coherent object identity
-
-3. **Physics Dynamics**
-   - Velocity and acceleration realism
-   - Trajectory smoothness
-   - Motion consistency
-
-4. **Video Quality**
-   - Brightness and color saturation
-   - Sharpness and detail
-   - Overall visual quality
-
----
-
-## 🔬 **Training Algorithm**
-
-### **Per-Timestep GRPO:**
-
-```python
-for timestep in last_N_timesteps:
-    # 1. Generate baseline (frozen model)
-    baseline_video = frozen_model.denoise(latents, timestep)
-    baseline_reward = reward_function(baseline_video)
-    
-    # 2. Generate rollouts (trainable model)
-    for rollout in range(3):
-        video = model.denoise(latents, timestep)
-        reward = reward_function(video)
-    
-    # 3. Compute advantages
-    advantages = (rewards - mean) / std
-    
-    # 4. Update model
-    loss = -advantages * mse_loss
-    loss.backward()
-    optimizer.step()
-```
-
----
-
-## 📈 **Results**
-
-**Training Configuration:**
-- Model: LTX-Video-2B
-- Frames: 81 (5 seconds @ 16fps)
-- Resolution: 512×768
-- GRPO steps: Last 15 timesteps
-- Learning rate: 1e-5 (conservative)
-
-**Reward Components:**
-- CLIP alignment: 0.24-0.29
-- DINO consistency: 0.77-0.97
-- Video quality: 0.52-0.68
-- Physics scores: 0.55-0.70
-
----
-
-## 🛠️ **Key Scripts**
-
-| Script | Purpose |
-|--------|---------|
-| `pipeline.sh` | Complete training pipeline |
-| `pipeline.py` | Per-timestep GRPO training |
-| `reward_functions.py` | Comprehensive reward functions |
-| `helper.py` | Video decoding utilities |
-
----
-
-## 📝 **Configuration**
-
-Edit `prompt.txt` to change the generation prompt:
-
-```bash
-echo "Your custom prompt here" > prompt.txt
-```
-
-Adjust training parameters in `pipeline.py`:
-- `NUM_GRPO_STEPS`: How many timesteps to train (default: 15)
-- `lr`: Learning rate (default: 1e-5)
-- `num_rollouts`: Rollouts per timestep (default: 3)
-- `num_frames`: Video length (default: 81 frames)
-
----
-
-## 💾 **Hardware Requirements**
-
-| GPU | Training | Inference |
-|-----|----------|-----------|
-| **A100 (80GB)** | ✅ Full training (81 frames) | ✅ Any length |
-| **A6000 (48GB)** | ⚠️ Reduced frames (17-33) | ✅ Short videos |
-| **RTX 4090 (24GB)** | ❌ Too small | ⚠️ Very short only |
-
-**Memory usage:**
-- Per-timestep training: ~20-25 GB
-- Video decoding: ~10-15 GB per video
-- Peak: ~35-40 GB
-
----
-
-## 📚 **Documentation**
-
-- `SETUP_INSTRUCTIONS.md` - Complete installation guide
-- `requirements_annotated.txt` - Annotated dependencies
-- Code comments throughout all scripts
-
----
-
-## 🐛 **Known Issues & Solutions**
-
-### **Issue: CUDA Out of Memory**
-**Solution:** Reduce `num_frames` to 17-33 in `pipeline.py`
-
-### **Issue: Videos still blurry**
-**Possible causes:**
-- Learning rate too small (increase to 1e-4)
-- Need more unfrozen layers
-- Stochastic sampling diversity issues
-
-### **Issue: GRPO degrading quality**
-**Solution:** Use very conservative LR (1e-6) or compare to baseline before updating
-
----
-
-## 📖 **References**
-
-- LTX-Video: [Lightricks/LTX-Video](https://github.com/Lightricks/LTX-Video)
-- GRPO Paper: Group Relative Policy Optimization
-- CLIP: [OpenAI/CLIP](https://github.com/openai/CLIP)
-- DINOv2: [facebookresearch/dinov2](https://github.com/facebookresearch/dinov2)
-
----
-
-## 📄 **License**
-
-See individual model licenses:
-- LTX-Video: Check Lightricks license
-- CLIP: MIT License
-- DINOv2: Apache 2.0
-
----
-
-## 🙏 **Acknowledgments**
-
-- Lightricks team for LTX-Video
-- OpenAI for CLIP
-- Meta for DINOv2
-- Diffusers library maintainers
-
----
-
-## ⚡ **Quick Commands**
-
-```bash
-# Training
-bash pipeline.sh
-
-# Just baseline (no training)
-cd ltx_video && python run_inference.py --pipeline_config configs/ltxv-2b-0.9.8-distilled-no-enhancer.yaml --prompt "$(cat ../prompt.txt)" --output_path ../baseline
-
-# Check outputs
-ls -lh grpo/final_video_*.mp4
-ls -lh baseline/video_output_*.mp4
-```
-
----
-
-**For detailed setup instructions, see `SETUP_INSTRUCTIONS.md`**
-
-**For issues and questions, check the training logs in `grpo/training_log_*.txt`**
+ # LTX-Video GRPO Training – Complete Setup Guide
+ 
+ GRPO training pipeline for LTX-Video focused on physics-aware, text-aligned video generation.
+ 
+ ## 🎯 Overview
+ - Per-timestep GRPO for LTX-Video with CLIP, DINO, and physics rewards
+ - Baseline comparison to avoid quality regressions
+ - Fits 80GB GPUs; supports shorter configs for 24–48GB cards
+ 
+ ## 🚀 Quick Start (Fresh Environment)
+ ### Step 1: Create Conda Environment
+ ```bash
+ conda create -n ltx-grpo python=3.10 -y
+ conda activate ltx-grpo
+ ```
+ 
+ ### Step 2: Install PyTorch with CUDA
+ ```bash
+ pip install torch==2.9.1 torchvision==0.24.1 --index-url https://download.pytorch.org/whl/cu118
+ ```
+ 
+ ### Step 3: Install Core Dependencies
+ ```bash
+ pip install -r requirements.txt
+ ```
+ 
+ ### Step 4: Install CLIP from Source
+ ```bash
+ pip install git+https://github.com/openai/CLIP.git
+ ```
+ 
+ ### Step 5: Install LTX-Video
+ ```bash
+ cd ltx_video
+ pip install -e .
+ cd ..
+ ```
+ 
+ ### Step 6: Verify Installation
+ ```bash
+ python -c "import torch; print(f'✓ PyTorch: {torch.__version__}'); print(f'✓ CUDA available: {torch.cuda.is_available()}')"
+ python -c "from ltx_video.inference import create_ltx_video_pipeline; print('✓ LTX-Video OK')"
+ python -c "import clip; print('✓ CLIP OK')"
+ python -c "from reward_functions import reward_function; print('✓ Reward functions OK')"
+ ```
+ 
+ ## 📦 Key Package Versions
+ ```
+ Python: 3.10+
+ PyTorch: 2.9.1
+ CUDA: 11.8+
+ diffusers: 0.36.0
+ transformers: 4.57.3
+ clip: 1.0
+ ltx-video: 0.1.2
+ ```
+ 
+ ## 🚀 Running Training
+ ```bash
+ conda activate ltx-grpo
+ cd /home/ubuntu/angel-research/full_sequence_grpo
+ 
+ # Optional: set a custom prompt
+ echo "A bright red ball bouncing down stairs" > prompt.txt
+ 
+ # Launch GRPO training
+ bash pipeline.sh
+ ```
+ 
+ ## 📝 Configuration Tips
+ - Adjust training knobs in `pipeline.py` (`NUM_GRPO_STEPS`, `lr`, `num_rollouts`, `num_frames`).
+ - For quicker experiments on smaller GPUs, lower `num_frames` (e.g., 17–33) and resolution.
+ 
+ ## 💾 Hardware Requirements
+ | Component | Minimum | Recommended |
+ |-----------|---------|-------------|
+ | **GPU** | 24GB VRAM | 80GB (A100) |
+ | **RAM** | 32GB | 64GB+ |
+ | **Storage** | 20GB | 50GB+ |
+ | **CUDA** | 11.8 | 12.0+ |
+ 
+ Typical memory usage: ~20–25 GB during GRPO steps; video decoding ~10–15 GB; peak ~35–40 GB.
+ 
+ ## 📝 Files Generated
+ ```
+ full_sequence_grpo/
+ ├── requirements.txt             # Pip requirements
+ ├── requirements_annotated.txt   # Notes and guidance
+ ├── grpo/                        # Training outputs
+ │   ├── final_video_*.mp4
+ │   └── training_log_*.txt
+ └── baseline/                    # Baseline outputs
+     └── video_output_*.mp4
+ ```
+ 
+ ## 🐛 Troubleshooting
+ - **CUDA OOM:** Reduce `num_frames` or resolution in `pipeline.py`.
+ - **CLIP not found:** `pip install git+https://github.com/openai/CLIP.git`
+ - **LTX-Video not found:** `cd ltx_video && pip install -e .`
+ - **Slow downloads:** `export HF_HOME=/path/to/large/storage`
+ - **Quality regressions:** Try lower `lr` (1e-6 to 1e-5) or compare against baseline before updating.
+ 
+ ## ✅ Verification Checklist
+ - [ ] Python 3.10+ with CUDA 11.8+
+ - [ ] PyTorch with CUDA installed
+ - [ ] Dependencies from `requirements.txt`
+ - [ ] CLIP installed from GitHub
+ - [ ] LTX-Video installed (editable)
+ - [ ] GPU ≥24GB VRAM and ≥50GB free storage
+ 
+ ## 📊 Package Summary
+ Total packages: **65**
+ - PyTorch & CUDA: 17
+ - HuggingFace ecosystem: 8
+ - Video processing: 4
+ - Reward models (CLIP/DINO): 2
+ - Utilities: 34
+ 
+ Total install time: ~10–15 minutes; download size: ~15–20 GB.
+ 
+ ## 🙏 Acknowledgments
+ - Lightricks team for LTX-Video
+ - OpenAI for CLIP
+ - Meta for DINOv2
+ - Diffusers library maintainers
