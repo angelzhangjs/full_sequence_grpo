@@ -16,6 +16,7 @@ Usage:
 """
 
 from peft import get_peft_model, LoraConfig, TaskType
+import re
 import torch.nn as nn
 
 def apply_lora_to_model(
@@ -108,6 +109,34 @@ def apply_lora_to_model(
     print(f"   Target modules: {len(target_modules)} patterns")
     
     model = get_peft_model(model, lora_config)
+
+    # Optionally restrict LoRA to the last `num_blocks` transformer blocks
+    if num_blocks > 0:
+        block_indices = set()
+        for name, _ in model.named_parameters():
+            m = re.search(r"transformer_blocks\.(\d+)\.", name)
+            if m:
+                block_indices.add(int(m.group(1)))
+
+        if block_indices:
+            max_idx = max(block_indices)
+            allowed = {i for i in block_indices if i >= max_idx - num_blocks + 1}
+            kept = skipped = 0
+            for name, p in model.named_parameters():
+                if "lora_" in name:
+                    m = re.search(r"transformer_blocks\.(\d+)\.", name)
+                    if m and int(m.group(1)) not in allowed:
+                        p.requires_grad = False
+                        skipped += 1
+                    else:
+                        kept += 1
+
+            span = f"{min(allowed)}..{max(allowed)}" if allowed else "n/a"
+            print(f"   LoRA block filtering: keeping last {len(allowed)} blocks ({span})")
+            print(f"     Trainable LoRA params: {kept}")
+            print(f"     Frozen LoRA params:    {skipped}")
+        else:
+            print("⚠️  num_blocks set but no transformer_blocks.* found; applying LoRA to all matched modules.")
     
     # Print trainable parameters
     print(f"\n✅ LoRA Applied!")
@@ -141,7 +170,6 @@ def merge_lora_to_base(model):
     print("🔄 LoRA merged into base model")
     return model
 
-
 # ============================================================================
 # Example Configurations
 # ============================================================================
@@ -168,7 +196,6 @@ def get_lora_config_text_focused():
         'lora_dropout': 0.05,
         'learning_rate_scale': 0.5,
     }
-
 
 def get_lora_config_comprehensive():
     """LoRA config for both motion and text (hybrid approach)"""

@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from pathlib import Path
 from typing import Dict, Iterable, Optional, Tuple
 
@@ -107,6 +108,7 @@ def score_video_with_gemini(
     model_name: str = "gemini-1.5-flash",
     api_key: Optional[str] = None,
     request_timeout: int = 120,
+    max_wait_active: int = 90,
 ) -> Dict[str, float]:
     """
     Score a single video for motion dynamics and physical realism using Gemini Flash.
@@ -116,7 +118,23 @@ def score_video_with_gemini(
     the model does not return it.
     """
     model = _ensure_model(model_name, api_key)
-    video_file = genai.upload_file(_load_video(Path(video_path)))
+    uploaded = genai.upload_file(_load_video(Path(video_path)), mime_type="video/mp4")
+
+    # Poll until file is ACTIVE to avoid 400 "not in ACTIVE state"
+    start = time.time()
+    last_state = None
+    while True:
+        uploaded = genai.get_file(uploaded.name)
+        last_state = getattr(uploaded, "state", None)
+        if last_state == "ACTIVE":
+            break
+        if last_state == "FAILED":
+            raise RuntimeError(f"Gemini file {uploaded.name} failed to activate (state=FAILED).")
+        if time.time() - start > max_wait_active:
+            raise RuntimeError(
+                f"Gemini file {uploaded.name} not active after {max_wait_active}s (last state={last_state})."
+            )
+        time.sleep(1)
 
     prompt = (
         "You are judging a short video for action quality.\n"
@@ -127,7 +145,7 @@ def score_video_with_gemini(
     )
 
     response = model.generate_content(
-        [video_file, prompt],
+        [uploaded, prompt],
         request_options={"timeout": request_timeout},
     )
 
