@@ -5,34 +5,28 @@ LTX-Video Pipeline - Complete Working Example
 Shows proper denoising loop with x0 prediction and video saving
 """
 import torch
-from ltx_video.inference import load_pipeline_config, create_ltx_video_pipeline
+from ltx_video.ltx_video.inference import load_pipeline_config, create_ltx_video_pipeline
 from ltx_video.models.autoencoders.causal_video_autoencoder import CausalVideoAutoencoder
 from ltx_video.models.autoencoders.vae_encode import latent_to_pixel_coords
 from huggingface_hub import hf_hub_download
 import os
 import sys
 import copy
+from pathlib import Path
 from datetime import datetime
+import imageio
 from helper import decode_x0_to_video
 from reward_functions import reward_function, clear_model_cache
+from gemini_rewards import score_video_with_gemini
 
 # Clear any cached models to ensure proper dtype loading
 clear_model_cache()
 import numpy as np
 import random
-
 # ============================================================================
 # Set Random Seeds for Reproducibility
 # ============================================================================
 SEED = 2026
-torch.manual_seed(SEED)
-torch.cuda.manual_seed(SEED)
-torch.cuda.manual_seed_all(SEED)
-np.random.seed(SEED)
-random.seed(SEED)
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
-
 # ============================================================================
 # Setup Logging to File
 # ============================================================================
@@ -53,6 +47,30 @@ class TeeLogger:
     def close(self):
         self.log.close()
 
+# Simple helper to save rollout videos for Gemini ranking
+def save_video_to_mp4(video_tensor, out_path, frame_rate: int = 16):
+    """
+    video_tensor: [1, T, 3, H, W] in [0, 1]
+    """
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    video_np = video_tensor[0].float().cpu().numpy()  # [T, 3, H, W]
+    video_np = np.transpose(video_np, (0, 2, 3, 1))  # [T, H, W, 3]
+    video_np = (video_np * 255).clip(0, 255).astype(np.uint8)
+    
+    writer = imageio.get_writer(
+        str(out_path),
+        fps=frame_rate,
+        codec='libx264',
+        quality=8,
+        pixelformat='yuv420p',
+        macro_block_size=1,
+        output_params=['-movflags', '+faststart', '-profile:v', 'baseline'],
+    )
+    for frame in video_np:
+        writer.append_data(frame)
+    writer.close()
+
 # Create log file with timestamp in grpo/ folder
 os.makedirs("grpo", exist_ok=True)  # Create grpo folder if it doesn't exist
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -69,7 +87,7 @@ print("="*70 + "\n")
 # Load Pipeline
 # ============================================================================
 # Using 2B model for faster training and lower memory usage
-config_path = "configs/ltxv-2b-0.9.6-dev-grpo.yaml"  # Using GRPO config (no prompt enhancer)
+config_path = "configs/ltxv-2b-0.9.6-dev.yaml"  # Using GRPO config (no prompt enhancer)
 cfg = load_pipeline_config(config_path)
 ckpt_name = cfg["checkpoint_path"]   # load the checkpoint name from the config file
 
@@ -110,8 +128,12 @@ model = pipeline.transformer
 scheduler = pipeline.scheduler
 vae = pipeline.vae
 
-# Timesteps
-scheduler.set_timesteps(20, device="cuda")
+# Toggle Gemini-based ranking for rollouts (one-hot or normalized advantages)
+USE_GEMINI_RANKING = True
+GEMINI_MODEL_NAME = "models/gemini-2.5-flash"
+
+# Timesteps (increase to 40 for finer denoising; higher cost/memory)
+scheduler.set_timesteps(40, device="cuda")
 timesteps = scheduler.timesteps
 
 # GRPO only on last N timesteps (fine details and motion)
@@ -155,7 +177,7 @@ print(f"prompt_embeds: {prompt_embeds.shape}\n")
 # 5 seconds at 16 fps = 80 frames
 height = 512
 width = 768
-num_frames = 81  # 5 seconds at 16 fps (rounded up for divisibility)
+num_frames = 80  # exact 5 seconds at 16 fps
 frame_rate = 16
 
 print(f"⚠️  Training will decode {num_frames}-frame videos at each step")
@@ -172,8 +194,6 @@ latent_frames = num_frames // video_scale_factor
 if isinstance(vae, CausalVideoAutoencoder):
     latent_frames += 1
 
-# latent_shape = (1, 4, latent_frames, latent_height, latent_width)
-
 latent_shape = (1, pipeline.vae.config.latent_channels, latent_frames, latent_height, latent_width)
 
 print(f"Latent shape: {latent_shape}\n")
@@ -181,97 +201,7 @@ print(f"Latent shape: {latent_shape}\n")
 # ============================================================================
 # Choose Unfreezing Method: LoRA or Traditional
 # ============================================================================
-"""
-
-# Freeze all parameters first
-for param in model.parameters():
-    param.requires_grad = False
-
-# Configuration - CONSERVATIVE: Only unfreeze LAST 2 blocks (preserve baseline!)
-TOTAL_BLOCKS = 28  # LTX-Video has 28 transformer blocks (0-27)
-BLOCKS_TO_UNFREEZE = [26, 27]  # Only last 2 blocks - minimal, safe changes
-UNFREEZE_CROSS_ATTN = False  # Keep frozen
-
-# Strategy: Preserve what works (baseline), only refine final details
-print("\n⚠️  CONSERVATIVE MODE: Minimal unfreezing to preserve baseline quality")
-
-unfrozen_params = []
-attn1_count = 0
-attn2_count = 0
-
-print(f"\n🎯 CONSERVATIVE STRATEGY (Preserve Baseline):")
-print(f"   Self-Attention: Only blocks {BLOCKS_TO_UNFREEZE}")
-print(f"   Goal: Minimal changes, preserve baseline quality")
-print(f"   Cross-Attention: {'Yes' if UNFREEZE_CROSS_ATTN else 'No'}\n")
-
-for name, param in model.named_parameters():
-    should_unfreeze = False
-    layer_type = None
-    
-    # CONSERVATIVE: Only unfreeze specific blocks (26, 27)
-    for block_idx in BLOCKS_TO_UNFREEZE:
-        if f"transformer_blocks.{block_idx}." in name:
-            # Only self-attention
-            if any(pattern in name for pattern in [
-                "attn1.to_q", "attn1.to_k", "attn1.to_v", "attn1.to_out"
-            ]):
-                if "attn2" not in name:
-                    should_unfreeze = True
-                    layer_type = "attn1"
-                    attn1_count += 1
-                    break
-    
-    if should_unfreeze:
-        param.requires_grad = True
-        unfrozen_params.append(param)
-        print(f"  Unfreezing [{layer_type:5s}]: {name} - {param.shape}")
-
-# Safety check - raise error if attention layers not found
-if len(unfrozen_params) == 0:
-    print("\n❌ ERROR: No attention layers found!")
-    print("\n🔍 Available layer names (sample):")
-    sample_count = 0
-    for name, _ in model.named_parameters():
-        if 'block' in name.lower() and sample_count < 10:
-            print(f"     {name}")
-            sample_count += 1
-    
-    raise ValueError(
-        f"No attention parameters were unfrozen!\n"
-        f"   Looking for: Self-attention (attn1) in blocks {attn1_start_block}-{TOTAL_BLOCKS-1}\n"
-        f"                Cross-attention (attn2) in block {ATTN2_TARGET_BLOCK}\n"
-        f"   Check layer naming patterns above and adjust the code."
-    )
-
-# Summary
-print(f"\n✅ Unfreezing Summary:")
-print(f"   Self-attention (attn1) params: {attn1_count}")
-print(f"   Cross-attention (attn2) params: {attn2_count}")
-print(f"   Total unfrozen parameters: {len(unfrozen_params)}")
-print(f"   Total param count: {sum(p.numel() for p in unfrozen_params):,}")
-
-# Adjust learning rate based on number of parameters
-total_params = sum(p.numel() for p in unfrozen_params)
-if total_params > 10_000_000:  # > 10M params
-    lr = 3e-5
-    print(f"   Using lower LR for many params: {lr:.2e}")
-elif total_params > 1_000_000:  # > 1M params
-    lr = 5e-5
-    print(f"   Using moderate LR: {lr:.2e}")
-else:
-    lr = 1e-4
-    print(f"   Using standard LR: {lr:.2e}")
-
-print()
-
-optimizer = torch.optim.Adam(
-    unfrozen_params,
-    lr=lr,
-    betas=(0.9, 0.95),
-    weight_decay=0.01
-)
-"""
-USE_LORA = False  # Set to True to use LoRA (requires: pip install --upgrade transformers>=4.40)
+USE_LORA = True  # Set to True to use LoRA (requires: pip install --upgrade transformers>=4.40)
 
 if USE_LORA:
     # ========================================================================
@@ -285,9 +215,6 @@ if USE_LORA:
     
     # Choose configuration:
     config = get_lora_config_motion_focused()  # Self-attn in 5 blocks (motion/physics)
-    # config = get_lora_config_lightweight()     # Self-attn in 2 blocks (fast testing)
-    # config = get_lora_config_comprehensive()    # Both attn1+attn2 in 5 blocks (full)
-    # config = get_lora_config_text_focused()     # Cross-attn in 1 block (text conditioning)
     
     # Apply LoRA to model
     model, recommended_lr = apply_lora_to_model(model, **config)
@@ -300,110 +227,112 @@ if USE_LORA:
         betas=(0.9, 0.95),
         weight_decay=0.01
     )
-    
     print(f"✅ LoRA initialized with LR={recommended_lr:.2e}\n")
 
 else:
-    # ========================================================================
-    # Traditional Method - Direct unfreezing of attention layers
-    # ========================================================================
-    print("\n" + "="*70)
-    print("TRADITIONAL UNFREEZING (Attention Layers)")
-    print("="*70 + "\n")
+    raise ValueError("LoRA is not used, Traditional method not implemented")
+
+    # # ========================================================================
+    # # Traditional Method - Direct unfreezing of attention layers
+    # # ========================================================================
+    # print("\n" + "="*70)
+    # print("TRADITIONAL UNFREEZING (Attention Layers)")
+    # print("="*70 + "\n")
     
-    # Freeze all parameters first
-    for param in model.parameters():
-        param.requires_grad = False
+    # # Freeze all parameters first
+    # for param in model.parameters():
+    #     param.requires_grad = False
     
-    # Configuration
-    TOTAL_BLOCKS = 28  # LTX-Video has 28 transformer blocks (0-27)
-    ATTN1_NUM_BLOCKS = 4  # Unfreeze self-attention in last 4 blocks
-    ATTN2_TARGET_BLOCK = 27  # Unfreeze cross-attention in last block only
+    # # Configuration
+    # TOTAL_BLOCKS = 28  # LTX-Video has 28 transformer blocks (0-27)
+    # ATTN1_NUM_BLOCKS = 4  # Unfreeze self-attention in last 4 blocks
+    # ATTN2_TARGET_BLOCK = 27  # Unfreeze cross-attention in last block only
     
-    attn1_start_block = TOTAL_BLOCKS - ATTN1_NUM_BLOCKS  # Block 23
+    # attn1_start_block = TOTAL_BLOCKS - ATTN1_NUM_BLOCKS  # Block 23
     
-    unfrozen_params = []
-    attn1_count = 0
-    attn2_count = 0
+    # unfrozen_params = []
+    # attn1_count = 0
+    # attn2_count = 0
     
-    print(f"🎯 Unfreezing Strategy:")
-    print(f"   Self-Attention (attn1): Blocks {attn1_start_block}-{TOTAL_BLOCKS-1} (last {ATTN1_NUM_BLOCKS} blocks)")
-    print(f"   Cross-Attention (attn2): Block {ATTN2_TARGET_BLOCK} only\n")
+    # print(f"🎯 Unfreezing Strategy:")
+    # print(f"   Self-Attention (attn1): Blocks {attn1_start_block}-{TOTAL_BLOCKS-1} (last {ATTN1_NUM_BLOCKS} blocks)")
+    # print(f"   Cross-Attention (attn2): Block {ATTN2_TARGET_BLOCK} only\n")
     
-    for name, param in model.named_parameters():
-        should_unfreeze = False
-        layer_type = None
+    # for name, param in model.named_parameters():
+    #     should_unfreeze = False
+    #     layer_type = None
         
-        # Strategy 1: Unfreeze self-attention (attn1) in blocks 23-27
-        for block_idx in range(attn1_start_block, TOTAL_BLOCKS):
-            if f"transformer_blocks.{block_idx}." in name:
-                # Look for self-attention patterns (based on actual layer names)
-                if any(pattern in name for pattern in [
-                    "attn1.to_q", "attn1.to_k", "attn1.to_v", "attn1.to_out"
-                ]):
-                    should_unfreeze = True
-                    layer_type = "attn1"
-                    attn1_count += 1
-                    break
+    #     # Strategy 1: Unfreeze self-attention (attn1) in blocks 23-27
+    #     for block_idx in range(attn1_start_block, TOTAL_BLOCKS):
+    #         if f"transformer_blocks.{block_idx}." in name:
+    #             # Look for self-attention patterns (based on actual layer names)
+    #             if any(pattern in name for pattern in [
+    #                 "attn1.to_q", "attn1.to_k", "attn1.to_v", "attn1.to_out"
+    #             ]):
+    #                 should_unfreeze = True
+    #                 layer_type = "attn1"
+    #                 attn1_count += 1
+    #                 break
         
-        # Strategy 2: Unfreeze cross-attention (attn2) ONLY in block 27
-        if f"transformer_blocks.{ATTN2_TARGET_BLOCK}." in name:
-            if any(pattern in name for pattern in [
-                "attn2.to_q", "attn2.to_k", "attn2.to_v", "attn2.to_out"
-            ]):
-                should_unfreeze = True
-                layer_type = "attn2"
-                attn2_count += 1
+    #     # Strategy 2: Unfreeze cross-attention (attn2) ONLY in block 27
+    #     if f"transformer_blocks.{ATTN2_TARGET_BLOCK}." in name:
+    #         if any(pattern in name for pattern in [
+    #             "attn2.to_q", "attn2.to_k", "attn2.to_v", "attn2.to_out"
+    #         ]):
+    #             should_unfreeze = True
+    #             layer_type = "attn2"
+    #             attn2_count += 1
         
-        if should_unfreeze:
-            param.requires_grad = True
-            unfrozen_params.append(param)
-            print(f"  Unfreezing [{layer_type:5s}]: {name} - {param.shape}")
+    #     if should_unfreeze:
+    #         param.requires_grad = True
+    #         unfrozen_params.append(param)
+    #         print(f"  Unfreezing [{layer_type:5s}]: {name} - {param.shape}")
     
-    # Safety check - raise error if attention layers not found
-    if len(unfrozen_params) == 0:
-        print("\n❌ ERROR: No attention layers found!")
-        print("\n🔍 Available layer names (sample):")
-        sample_count = 0
-        for name, _ in model.named_parameters():
-            if 'block' in name.lower() and sample_count < 10:
-                print(f"     {name}")
-                sample_count += 1
+    # # Safety check - raise error if attention layers not found
+    # if len(unfrozen_params) == 0:
+    #     print("\n❌ ERROR: No attention layers found!")
+    #     print("\n🔍 Available layer names (sample):")
+    #     sample_count = 0
+    #     for name, _ in model.named_parameters():
+    #         if 'block' in name.lower() and sample_count < 10:
+    #             print(f"     {name}")
+    #             sample_count += 1
         
-        raise ValueError(
-            f"No attention parameters were unfrozen!\n"
-            f"   Looking for: Self-attention (attn1) in blocks {attn1_start_block}-{TOTAL_BLOCKS-1}\n"
-            f"                Cross-attention (attn2) in block {ATTN2_TARGET_BLOCK}\n"
-            f"   Check layer naming patterns above and adjust the code."
-        )
+    #     raise ValueError(
+    #         f"No attention parameters were unfrozen!\n"
+    #         f"   Looking for: Self-attention (attn1) in blocks {attn1_start_block}-{TOTAL_BLOCKS-1}\n"
+    #         f"                Cross-attention (attn2) in block {ATTN2_TARGET_BLOCK}\n"
+    #         f"   Check layer naming patterns above and adjust the code."
+    #     )
     
-    # Summary
-    print(f"\n✅ Unfreezing Summary:")
-    print(f"   Self-attention (attn1) params: {attn1_count}")
-    print(f"   Cross-attention (attn2) params: {attn2_count}")
-    print(f"   Total unfrozen parameters: {len(unfrozen_params)}")
-    print(f"   Total param count: {sum(p.numel() for p in unfrozen_params):,}")
+    # # Summary
+    # print(f"\n✅ Unfreezing Summary:")
+    # print(f"   Self-attention (attn1) params: {attn1_count}")
+    # print(f"   Cross-attention (attn2) params: {attn2_count}")
+    # print(f"   Total unfrozen parameters: {len(unfrozen_params)}")
+    # print(f"   Total param count: {sum(p.numel() for p in unfrozen_params):,}")
     
-    # Adjust learning rate based on number of parameters
-    total_params = sum(p.numel() for p in unfrozen_params)
-    if total_params > 10_000_000:  # > 10M params
-        lr = 1e-5  # VERY gentle LR to preserve baseline quality!
-        print(f"   Using GENTLE LR to preserve baseline: {lr:.2e}")
-    elif total_params > 1_000_000:  # > 1M params
-        lr = 1e-4
-        print(f"   Using moderate LR: {lr:.2e}")
-    else:
-        lr = 1e-4
-        print(f"   Using standard LR: {lr:.2e}")
+    # # Adjust learning rate based on number of parameters
+    # total_params = sum(p.numel() for p in unfrozen_params)
+    # if total_params > 10_000_000:  # > 10M params
+    #     lr = 1e-5  # VERY gentle LR to preserve baseline quality!
+    #     print(f"   Using GENTLE LR to preserve baseline: {lr:.2e}")
+    # elif total_params > 1_000_000:  # > 1M params
+    #     lr = 1e-4
+    #     print(f"   Using moderate LR: {lr:.2e}")
+    # else:
+    #     lr = 1e-4
+    #     print(f"   Using standard LR: {lr:.2e}")
     
-    print()
+    # print()
     
-    optimizer = torch.optim.Adam(
-        unfrozen_params,
-        lr=lr,
-        betas=(0.9, 0.95),
-        weight_decay=0.01
-    )
+    # optimizer = torch.optim.Adam(
+    #     unfrozen_params,
+    #     lr=lr,
+    #     betas=(0.9, 0.95),
+    #     weight_decay=0.01
+    # )
+    
 # ============================================================================
 # Initialize Latents and Run Non-GRPO Steps
 # ============================================================================
@@ -498,7 +427,6 @@ initial_weights = {}
 for name, param in model.named_parameters():
     if param.requires_grad:
         initial_weights[name] = param.data.clone()
-        
 print(f"📊 Tracking {len(initial_weights)} unfrozen parameters\n")
 
 num_rollouts = 3 
@@ -506,46 +434,8 @@ for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last 10 timestep
     print(f"GRPO Step {i+1:02d}/{len(timesteps_for_grpo)} | t={t:.4f}", end="")
         
     rollout_noise_preds = []  # Store noise predictions for later gradient computation
-    rollout_rewards = []
-    
-    #####==========================================================
-    # STEP 0: Generate BASELINE from frozen model (for GRPO comparison)
-    #####==========================================================
-    with torch.no_grad():
-        baseline_noise_pred = baseline_model(
-            latents,
-            indices_grid=indices_grid,
-            encoder_hidden_states=prompt_embeds,
-            encoder_attention_mask=prompt_attention_mask,
-            timestep=t,
-            return_dict=False,
-        )[0]
-        
-        _, baseline_x0_est = pipeline.denoising_step(
-            latents=latents,
-            noise_pred=baseline_noise_pred,
-            current_timestep=None,
-            conditioning_mask=None,
-            t=t,
-            extra_step_kwargs={},
-            stochastic_sampling=True,  # ENABLED for diversity!
-            return_x0=True,
-        )
-        
-        baseline_video = decode_x0_to_video(
-            baseline_x0_est,
-            pipeline,
-            num_frames=num_frames,
-            height=height,
-            width=width,
-            is_patchified=True,
-        )
-        baseline_reward = reward_function(baseline_video, prompt=prompt)
-        print(f" [Baseline reward: {baseline_reward.item():.4f}]", end="")
-        
-        # Clear baseline from memory
-        del baseline_video, baseline_x0_est, baseline_noise_pred
-        torch.cuda.empty_cache()
+    rollout_rewards = []      # Handcrafted rewards
+    rollout_video_paths = []  # Saved MP4s for Gemini ranking
         
     for rollout_index in range(num_rollouts):
         #####==========================================================
@@ -577,7 +467,6 @@ for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last 10 timestep
             # Store noise prediction for later
             rollout_noise_preds.append(noise_pred.clone())
             
-
             next_latents, x0_est = pipeline.denoising_step(
                 latents=latents,  # Use original latents for denoising
                 noise_pred=noise_pred,
@@ -589,7 +478,7 @@ for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last 10 timestep
                 return_x0=True,
             )
             
-            # Use helper function to get video_x0, and compute reward
+            # Decode x0 for saving and Gemini ranking
             video_x0 = decode_x0_to_video(
                     x0_est,
                     pipeline,
@@ -600,9 +489,18 @@ for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last 10 timestep
                     width=width,
                     is_patchified=True,
                 )
-            # Ensure video is float32 for reward function (CLIP/DINO expect float32)
-            video_x0 = video_x0.float() if video_x0.dtype == torch.bfloat16 else video_x0
-            reward = reward_function(video_x0, prompt=prompt)
+            # Save rollout video for Gemini ranking
+            rollout_path = Path("rollout_40_15") / f"rollout_step{i}_r{rollout_index}_{timestamp}.mp4"
+            save_video_to_mp4(video_x0, rollout_path, frame_rate=frame_rate)
+            rollout_video_paths.append(rollout_path)
+            print(f"  Saved rollout video: {rollout_path}")
+            # Save latent x0 as numpy for later analysis/ranking if needed
+            rollout_x0_path = Path("rollout_40_15_x0") / f"rollout_step{i}_r{rollout_index}_{timestamp}.npy"
+            rollout_x0_path.parent.mkdir(parents=True, exist_ok=True)
+            np.save(rollout_x0_path, x0_est.detach().float().cpu().numpy())
+            # Handcrafted reward
+            video_for_reward = video_x0.float() if video_x0.dtype == torch.bfloat16 else video_x0
+            reward = reward_function(video_for_reward, prompt=prompt)
             rollout_rewards.append(reward)
             
             ###================================================================== 
@@ -611,110 +509,53 @@ for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last 10 timestep
             torch.cuda.empty_cache()
             
     ###==================================================================
-    # STEP 2: Check diversity and regenerate if needed
-    ###==================================================================
-    rewards = torch.stack(rollout_rewards)
-    reward_std = rewards.std().item()
-    reward_range = (rewards.max() - rewards.min()).item()
+    # Compute advantages: Gemini when enabled; otherwise handcrafted
+    advantage_rewards = None
+    if USE_GEMINI_RANKING:
+        try:
+            print("\n[Gemini] Scoring rollouts...")
+            gemini_scores = []
+            for path in rollout_video_paths:
+                score = score_video_with_gemini(str(path), model_name=GEMINI_MODEL_NAME)
+                gemini_scores.append(score["overall"])
+                print(f"  {path.name}: overall={score['overall']:.4f}")
+            
+            scores_t = torch.tensor(gemini_scores, device=latents.device, dtype=torch.float32)
+            mean_g = scores_t.mean()
+            std_g = scores_t.std()
+            if std_g > 1e-8:
+                advantage_rewards = (scores_t - mean_g) / (std_g + 1e-4)
+            else:
+                advantage_rewards = scores_t - mean_g
+            
+            best_idx = int(scores_t.argmax().item())
+            print(f"[Gemini] Best rollout: idx={best_idx}, score={scores_t[best_idx]:.4f}")
+            print(f"Using Gemini-derived advantages (normalized scores).", end="")
+        except Exception as gem_err:
+            print(f"\n⚠️ Gemini ranking failed ({gem_err}); falling back to handcrafted rewards.")
+            advantage_rewards = None
     
-    # DIVERSITY FILTER: Regenerate if diversity is too low
-    MIN_DIVERSITY_STD = 0.02  # Minimum acceptable diversity (lowered for clearer outputs)
-    MAX_RETRY = 2  # Maximum regeneration attempts
-    
-    retry_count = 0
-    while reward_std < MIN_DIVERSITY_STD and retry_count < MAX_RETRY:
-        print(f"\n  ⟳ Low diversity (σ={reward_std:.4f}), regenerating with stronger noise (attempt {retry_count+1}/{MAX_RETRY})...", end="")
-        
-        # Clear old rollouts
-        del rollout_rewards, rollout_noise_preds
-        torch.cuda.empty_cache()
-        
-        # Regenerate with much stronger noise
-        extra_noise = 0.5 * (retry_count + 1)  # Add 0.5, 1.0 extra noise per retry
-        rollout_noise_preds = []
-        rollout_rewards = []
-        
-        for rollout_index in range(num_rollouts):
-            with torch.no_grad():
-                # Stronger perturbation on retry for diversity
-                if rollout_index > 0:
-                    noise_scale = 0.25 * rollout_index + (extra_noise * 0.5)  # More aggressive
-                    latents_perturbed = latents + torch.randn_like(latents) * noise_scale
-                else:
-                    latents_perturbed = latents
-                
-                # Higher temperature on retry for diversity
-                temperature = 1.0 + (rollout_index - 1) * 0.08 + (retry_count * 0.05)
-                
-                noise_pred = model(
-                    latents_perturbed,
-                    indices_grid=indices_grid,
-                    encoder_hidden_states=prompt_embeds,
-                    encoder_attention_mask=prompt_attention_mask,
-                    timestep=t,
-                    return_dict=False,
-                )[0]
-                
-                noise_pred = noise_pred * temperature
-                rollout_noise_preds.append(noise_pred.clone())
-                
-                _, x0_est = pipeline.denoising_step(
-                    latents=latents,
-                    noise_pred=noise_pred,
-                    current_timestep=None,
-                    conditioning_mask=None,
-                    t=t,
-                    extra_step_kwargs={},
-                    stochastic_sampling=True,  # ENABLED for diversity (critical for GRPO!)
-                    return_x0=True,
-                )
-                
-                video_x0 = decode_x0_to_video(
-                    x0_est, pipeline, num_frames, height, width, is_patchified=True
-                )
-                # Ensure float32 for reward function
-                video_x0 = video_x0.float() if video_x0.dtype == torch.bfloat16 else video_x0
-                reward = reward_function(video_x0, prompt=prompt)
-                rollout_rewards.append(reward)
-                
-                del video_x0, x0_est
-                torch.cuda.empty_cache()
-        
-        # Check new diversity
+    if advantage_rewards is None:
         rewards = torch.stack(rollout_rewards)
         reward_std = rewards.std().item()
         reward_range = (rewards.max() - rewards.min()).item()
-        retry_count += 1
-    
-    # Display diversity result
-    print(f"\n[Diversity] σ={reward_std:.4f}, range={reward_range:.4f}", end="")
-    if reward_std >= MIN_DIVERSITY_STD:
-        print(" ✓ GOOD", end="")
-    elif reward_std >= 0.02:
-        print(" 🟡 OK", end="")
-    else:
-        print(" ⚠️  LOW (using anyway)", end="")
-    
-    # Compute advantages using STANDARD GRPO (compare to group mean)
-    mean_reward = rewards.mean()
-    std_reward = rewards.std()
-    
-    # Standard GRPO: advantages relative to group mean
-    if std_reward > 1e-8:
-        advantage_rewards = (rewards - mean_reward) / (std_reward + 1e-4)
-    else:
-        advantage_rewards = rewards - mean_reward
-    
-    print(f"Rollout Statistics:")
-    print(f"  Mean reward: {mean_reward.item():.4f}")
-    print(f"  Std reward: {std_reward.item():.4f}")
-    print(f"  Baseline: {baseline_reward.item():.4f} (reference only)")
-    print(f"\nAdvantages (vs group mean={mean_reward.item():.4f}):")
-    for k in range(num_rollouts):
-        print(f"  Rollout {k}: reward={rewards[k]:.4f}, advantage={advantage_rewards[k]:.4f}")
+        print(f"\n[Reward stats] σ={reward_std:.4f}, range={reward_range:.4f}", end="")
+        
+        mean_reward = rewards.mean()
+        std_reward = rewards.std()
+        if std_reward > 1e-8:
+            advantage_rewards = (rewards - mean_reward) / (std_reward + 1e-4)
+        else:
+            advantage_rewards = rewards - mean_reward
+        
+        print(f"Rollout Statistics:")
+        print(f"  Mean reward: {mean_reward.item():.4f}")
+        print(f"  Std reward: {std_reward.item():.4f}")
+        print(f"\nAdvantages (vs group mean={mean_reward.item():.4f}):")
+        for k in range(num_rollouts):
+            print(f"  Rollout {k}: reward={rewards[k]:.4f}, advantage={advantage_rewards[k]:.4f}")
     
     # Clear rollout data to free memory before backward pass
-    del rollout_rewards, rewards, mean_reward
     torch.cuda.empty_cache()
     
     #=======================================================================
@@ -781,7 +622,7 @@ for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last 10 timestep
     for name, param in model.named_parameters():
         if param.requires_grad:
             weights_before[name] = param.data.clone()
-    
+
     # Update weights
     optimizer.step()
     
@@ -792,7 +633,6 @@ for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last 10 timestep
             change = (param.data - weights_before[name]).abs().mean().item()
             weight_changes.append(change)
     avg_weight_change = sum(weight_changes) / len(weight_changes) if weight_changes else 0
-    
     print(f"  ✅ Weights updated! grad_norm={avg_grad_norm:.6f}, weight_Δ={avg_weight_change:.6f}")
     
     # IMPORTANT: Clear everything after optimizer step
@@ -801,8 +641,7 @@ for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last 10 timestep
     
     # Delete intermediate tensors
     del loss, log_probs, noise_pred_current, latents_for_loss, rollout_noise_preds
-    torch.cuda.empty_cache()
-          
+    torch.cuda.empty_cache()    
     # ========================================================================
     # Step 4: Recompute with Updated Parameters
     # ========================================================================
@@ -904,7 +743,6 @@ with torch.no_grad():
     
     # Convert tensor to numpy for saving
     import numpy as np
-    import imageio
     
     # Convert bfloat16 to float32, then to numpy
     video_np = final_video[0].float().cpu().numpy()  # [num_frames, 3, H, W]
