@@ -7,42 +7,37 @@
  - Baseline comparison to avoid quality regressions
  - Fits 80GB GPUs; supports shorter configs for 24–48GB cards
  
- ## 🚀 Quick Start (Fresh Environment)
- ### Step 1: Create Conda Environment
- ```bash
- conda create -n ltx-grpo python=3.10 -y
- conda activate ltx-grpo
- ```
- 
- ### Step 2: Install PyTorch with CUDA
- ```bash
- pip install torch==2.9.1 torchvision==0.24.1 --index-url https://download.pytorch.org/whl/cu118
- ```
- 
- ### Step 3: Install Core Dependencies
- ```bash
- pip install -r requirements.txt
- ```
- 
- ### Step 4: Install CLIP from Source
- ```bash
- pip install git+https://github.com/openai/CLIP.git
- ```
- 
- ### Step 5: Install LTX-Video
- ```bash
- cd ltx_video
- pip install -e .
- cd ..
- ```
- 
- ### Step 6: Verify Installation
- ```bash
- python -c "import torch; print(f'✓ PyTorch: {torch.__version__}'); print(f'✓ CUDA available: {torch.cuda.is_available()}')"
- python -c "from ltx_video.inference import create_ltx_video_pipeline; print('✓ LTX-Video OK')"
- python -c "import clip; print('✓ CLIP OK')"
- python -c "from reward_functions import reward_function; print('✓ Reward functions OK')"
- ```
+## 🚀 Quick Start (Fresh Environment)
+### One-command setup (recommended)
+From repo root:
+```bash
+bash setup_env.sh
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate ltx-grpo-test
+python -c "import torch; print('torch', torch.__version__)"
+```
+
+### Manual setup (if you prefer)
+1) Create & activate env
+```bash
+conda create -n ltx-grpo-test python=3.10 -y
+conda activate ltx-grpo-test
+```
+2) Install PyTorch (CUDA 12.1 wheels)
+```bash
+pip install torch==2.9.1 torchvision==0.24.1 --index-url https://download.pytorch.org/whl/cu121
+```
+3) Install dependencies
+```bash
+pip install -r requirements.txt
+```
+4) Verify
+```bash
+python -c "import torch; print(f'✓ torch {torch.__version__} CUDA:{torch.cuda.is_available()}')"
+python -c "from ltx_video.inference import create_ltx_video_pipeline; print('✓ LTX-Video OK')"
+python -c "import clip; print('✓ CLIP OK')"
+python -c "from reward_functions import reward_function; print('✓ Reward functions OK')"
+```
  
  ## 📦 Key Package Versions
  ```

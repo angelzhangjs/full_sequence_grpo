@@ -83,19 +83,27 @@ print("="*70)
 print("LTX-VIDEO PIPELINE - DENOISING WITH X0 PREDICTIONS")
 print(f"Logging to: {log_filename}")
 print("="*70 + "\n")
+
 # ============================================================================
 # Load Pipeline
 # ============================================================================
 # Using 2B model for faster training and lower memory usage
-config_path = "configs/ltxv-2b-0.9.6-dev.yaml"  # Using GRPO config (no prompt enhancer)
+config_path = "configs/ltxv-2b-0.9.5.yaml"  # Using GRPO config (no prompt enhancer)
 cfg = load_pipeline_config(config_path)
 ckpt_name = cfg["checkpoint_path"]   # load the checkpoint name from the config file
 
-if not os.path.isfile(ckpt_name):
-    print(f"Downloading {ckpt_name}...")
-    ckpt_path = hf_hub_download("Lightricks/LTX-Video", ckpt_name)
-else:
-    ckpt_path = ckpt_name
+def resolve_checkpoint(name: str) -> str:
+    try:
+        print(f"Attempting checkpoint: {name}")
+        return hf_hub_download("Lightricks/LTX-Video", name)
+    except Exception as e:
+        print(f"⚠️  Download failed for {name}: {e}")
+        return None
+
+ckpt_path = ckpt_name if os.path.isfile(ckpt_name) else resolve_checkpoint(ckpt_name)
+
+if ckpt_path is None or not os.path.isfile(ckpt_path):
+    raise FileNotFoundError(f"Could not locate or download the checkpoint: {ckpt_name}")
 
 pipeline = create_ltx_video_pipeline(
     ckpt_path=ckpt_path,
@@ -139,7 +147,7 @@ timesteps = scheduler.timesteps
 # GRPO only on last N timesteps (fine details and motion)
 # Early timesteps (high noise) are just rough structure, don't need GRPO
 NUM_GRPO_STEPS = 15  # Increased from 10 for more training
-timesteps_for_grpo = timesteps[-NUM_GRPO_STEPS:]  # Last 10 steps
+timesteps_for_grpo = timesteps[-NUM_GRPO_STEPS:]  
 print(f"Total timesteps: {len(timesteps)} steps [{timesteps[0]:.4f} → {timesteps[-1]:.4f}]")
 print(f"GRPO training on: Last {NUM_GRPO_STEPS} steps [{timesteps_for_grpo[0]:.4f} → {timesteps_for_grpo[-1]:.4f}]")
 print(f"Skipping first {len(timesteps) - NUM_GRPO_STEPS} steps (rough structure only)\n")
@@ -180,7 +188,7 @@ width = 768
 num_frames = 80  # exact 5 seconds at 16 fps
 frame_rate = 16
 
-print(f"⚠️  Training will decode {num_frames}-frame videos at each step")
+print(f"Training will decode {num_frames}-frame videos at each step")
 print(f"   Est. VAE decode memory: ~{num_frames * 0.16:.1f} GB per step") 
 
 # Calculate latent dimensions
@@ -231,107 +239,6 @@ if USE_LORA:
 
 else:
     raise ValueError("LoRA is not used, Traditional method not implemented")
-
-    # # ========================================================================
-    # # Traditional Method - Direct unfreezing of attention layers
-    # # ========================================================================
-    # print("\n" + "="*70)
-    # print("TRADITIONAL UNFREEZING (Attention Layers)")
-    # print("="*70 + "\n")
-    
-    # # Freeze all parameters first
-    # for param in model.parameters():
-    #     param.requires_grad = False
-    
-    # # Configuration
-    # TOTAL_BLOCKS = 28  # LTX-Video has 28 transformer blocks (0-27)
-    # ATTN1_NUM_BLOCKS = 4  # Unfreeze self-attention in last 4 blocks
-    # ATTN2_TARGET_BLOCK = 27  # Unfreeze cross-attention in last block only
-    
-    # attn1_start_block = TOTAL_BLOCKS - ATTN1_NUM_BLOCKS  # Block 23
-    
-    # unfrozen_params = []
-    # attn1_count = 0
-    # attn2_count = 0
-    
-    # print(f"🎯 Unfreezing Strategy:")
-    # print(f"   Self-Attention (attn1): Blocks {attn1_start_block}-{TOTAL_BLOCKS-1} (last {ATTN1_NUM_BLOCKS} blocks)")
-    # print(f"   Cross-Attention (attn2): Block {ATTN2_TARGET_BLOCK} only\n")
-    
-    # for name, param in model.named_parameters():
-    #     should_unfreeze = False
-    #     layer_type = None
-        
-    #     # Strategy 1: Unfreeze self-attention (attn1) in blocks 23-27
-    #     for block_idx in range(attn1_start_block, TOTAL_BLOCKS):
-    #         if f"transformer_blocks.{block_idx}." in name:
-    #             # Look for self-attention patterns (based on actual layer names)
-    #             if any(pattern in name for pattern in [
-    #                 "attn1.to_q", "attn1.to_k", "attn1.to_v", "attn1.to_out"
-    #             ]):
-    #                 should_unfreeze = True
-    #                 layer_type = "attn1"
-    #                 attn1_count += 1
-    #                 break
-        
-    #     # Strategy 2: Unfreeze cross-attention (attn2) ONLY in block 27
-    #     if f"transformer_blocks.{ATTN2_TARGET_BLOCK}." in name:
-    #         if any(pattern in name for pattern in [
-    #             "attn2.to_q", "attn2.to_k", "attn2.to_v", "attn2.to_out"
-    #         ]):
-    #             should_unfreeze = True
-    #             layer_type = "attn2"
-    #             attn2_count += 1
-        
-    #     if should_unfreeze:
-    #         param.requires_grad = True
-    #         unfrozen_params.append(param)
-    #         print(f"  Unfreezing [{layer_type:5s}]: {name} - {param.shape}")
-    
-    # # Safety check - raise error if attention layers not found
-    # if len(unfrozen_params) == 0:
-    #     print("\n❌ ERROR: No attention layers found!")
-    #     print("\n🔍 Available layer names (sample):")
-    #     sample_count = 0
-    #     for name, _ in model.named_parameters():
-    #         if 'block' in name.lower() and sample_count < 10:
-    #             print(f"     {name}")
-    #             sample_count += 1
-        
-    #     raise ValueError(
-    #         f"No attention parameters were unfrozen!\n"
-    #         f"   Looking for: Self-attention (attn1) in blocks {attn1_start_block}-{TOTAL_BLOCKS-1}\n"
-    #         f"                Cross-attention (attn2) in block {ATTN2_TARGET_BLOCK}\n"
-    #         f"   Check layer naming patterns above and adjust the code."
-    #     )
-    
-    # # Summary
-    # print(f"\n✅ Unfreezing Summary:")
-    # print(f"   Self-attention (attn1) params: {attn1_count}")
-    # print(f"   Cross-attention (attn2) params: {attn2_count}")
-    # print(f"   Total unfrozen parameters: {len(unfrozen_params)}")
-    # print(f"   Total param count: {sum(p.numel() for p in unfrozen_params):,}")
-    
-    # # Adjust learning rate based on number of parameters
-    # total_params = sum(p.numel() for p in unfrozen_params)
-    # if total_params > 10_000_000:  # > 10M params
-    #     lr = 1e-5  # VERY gentle LR to preserve baseline quality!
-    #     print(f"   Using GENTLE LR to preserve baseline: {lr:.2e}")
-    # elif total_params > 1_000_000:  # > 1M params
-    #     lr = 1e-4
-    #     print(f"   Using moderate LR: {lr:.2e}")
-    # else:
-    #     lr = 1e-4
-    #     print(f"   Using standard LR: {lr:.2e}")
-    
-    # print()
-    
-    # optimizer = torch.optim.Adam(
-    #     unfrozen_params,
-    #     lr=lr,
-    #     betas=(0.9, 0.95),
-    #     weight_decay=0.01
-    # )
     
 # ============================================================================
 # Initialize Latents and Run Non-GRPO Steps
@@ -360,6 +267,7 @@ pixel_coords = latent_to_pixel_coords(
 
 indices_grid = pixel_coords.to(torch.float32)
 indices_grid[:, 0] *= (1.0 / frame_rate)
+
 # ============================================================================
 # Create Frozen Baseline Model for GRPO
 # ============================================================================
@@ -430,12 +338,13 @@ for name, param in model.named_parameters():
 print(f"📊 Tracking {len(initial_weights)} unfrozen parameters\n")
 
 num_rollouts = 3 
-for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last 10 timesteps
+for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last N timesteps
     print(f"GRPO Step {i+1:02d}/{len(timesteps_for_grpo)} | t={t:.4f}", end="")
         
     rollout_noise_preds = []  # Store noise predictions for later gradient computation
     rollout_rewards = []      # Handcrafted rewards
     rollout_video_paths = []  # Saved MP4s for Gemini ranking
+    rollout_records = []      # For per-rollout logging
         
     for rollout_index in range(num_rollouts):
         #####==========================================================
@@ -490,18 +399,27 @@ for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last 10 timestep
                     is_patchified=True,
                 )
             # Save rollout video for Gemini ranking
-            rollout_path = Path("rollout_40_15") / f"rollout_step{i}_r{rollout_index}_{timestamp}.mp4"
+            rollout_path = Path("rollout_40_15_handcraft") / f"rollout_step{i}_r{rollout_index}_{timestamp}.mp4"
             save_video_to_mp4(video_x0, rollout_path, frame_rate=frame_rate)
             rollout_video_paths.append(rollout_path)
             print(f"  Saved rollout video: {rollout_path}")
             # Save latent x0 as numpy for later analysis/ranking if needed
-            rollout_x0_path = Path("rollout_40_15_x0") / f"rollout_step{i}_r{rollout_index}_{timestamp}.npy"
+            rollout_x0_path = Path("rollout_40_15_handcraft_x0") / f"rollout_step{i}_r{rollout_index}_{timestamp}.npy"
             rollout_x0_path.parent.mkdir(parents=True, exist_ok=True)
             np.save(rollout_x0_path, x0_est.detach().float().cpu().numpy())
             # Handcrafted reward
             video_for_reward = video_x0.float() if video_x0.dtype == torch.bfloat16 else video_x0
             reward = reward_function(video_for_reward, prompt=prompt)
             rollout_rewards.append(reward)
+            rollout_records.append(
+                {
+                    "timestep_index": i,
+                    "rollout_index": rollout_index,
+                    "video_path": str(rollout_path),
+                    "x0_path": str(rollout_x0_path),
+                    "reward": reward.item() if hasattr(reward, "item") else float(reward),
+                }
+            )
             
             ###================================================================== 
             # Clear GPU memory after each rollout to prevent OOM
@@ -555,6 +473,20 @@ for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last 10 timestep
         for k in range(num_rollouts):
             print(f"  Rollout {k}: reward={rewards[k]:.4f}, advantage={advantage_rewards[k]:.4f}")
     
+        # Write per-timestep log summary to file
+        log_dir = Path("rollout_40_15_handcraft_txt")
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / f"timestep_{i}_{timestamp}.txt"
+        with log_file.open("w") as f:
+            f.write(f"Timestep index: {i}\n")
+            f.write(f"Reward mean: {mean_reward.item():.6f}\n")
+            f.write(f"Reward std: {std_reward.item():.6f}\n")
+            f.write("Rollouts:\n")
+            for rec, adv in zip(rollout_records, advantage_rewards):
+                f.write(
+                    f"  r={rec['rollout_index']}: file={rec['video_path']}, "
+                    f"reward={rec['reward']:.6f}, advantage={adv.item():.6f}\n"
+                )
     # Clear rollout data to free memory before backward pass
     torch.cuda.empty_cache()
     
@@ -642,6 +574,7 @@ for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last 10 timestep
     # Delete intermediate tensors
     del loss, log_probs, noise_pred_current, latents_for_loss, rollout_noise_preds
     torch.cuda.empty_cache()    
+    
     # ========================================================================
     # Step 4: Recompute with Updated Parameters
     # ========================================================================
@@ -697,96 +630,71 @@ print("="*70 + "\n")
 # Create outputs directory if it doesn't exist
 os.makedirs("outputs", exist_ok=True)
 
-# Generate final video
+# Generate final video with a full forward pass over all timesteps
 with torch.no_grad():
-    # Use the updated model to generate final prediction
-    noise_pred_final = model(
-        latents,
-        indices_grid=indices_grid,
-        encoder_hidden_states=prompt_embeds,
-        encoder_attention_mask=prompt_attention_mask,
-        timestep=timesteps[-1],  # Use final timestep
-        return_dict=False,
-    )[0]
-    
-    # Get final x0 estimate
-    _, x0_final = pipeline.denoising_step(
-        latents=latents,
-        noise_pred=noise_pred_final,
-        current_timestep=None,
-        conditioning_mask=None,
-        t=timesteps[-1],
-        extra_step_kwargs={},
-        stochastic_sampling=True,  # CRITICAL: Match rollout setting for color!
-        return_x0=True
+    # Re-initialize latents for a clean generation pass
+    latents_final = pipeline.prepare_latents(
+        latents=None,
+        media_items=None,
+        timestep=timesteps[0],
+        latent_shape=(
+            1,
+            pipeline.vae.config.latent_channels,
+            num_frames // pipeline.video_scale_factor,
+            height // pipeline.vae_scale_factor,
+            width // pipeline.vae_scale_factor,
+        ),
+        dtype=torch.bfloat16,
+        device=torch.device("cuda"),
+        generator=None,
     )
-    
-    # Decode to video
-    print("Decoding final video...")
-    print(f"  [DEBUG] x0_final latent stats:")
-    print(f"    Shape: {x0_final.shape}")
-    print(f"    Min: {x0_final.min():.4f}, Max: {x0_final.max():.4f}, Mean: {x0_final.mean():.4f}")
-    print(f"    Std: {x0_final.std():.4f}")
-    
+    latents_final, latent_coords_final = pipeline.patchifier.patchify(latents_final)
+    pixel_coords_final = latent_to_pixel_coords(
+        latent_coords_final,
+        pipeline.vae,
+        causal_fix=pipeline.transformer.config.causal_temporal_positioning,
+    )
+    indices_grid_final = pixel_coords_final.to(torch.float32)
+    indices_grid_final[:, 0] *= (1.0 / frame_rate)
+
+    last_x0 = None
+    for t in timesteps:
+        noise_pred = model(
+            latents_final,
+            indices_grid=indices_grid_final,
+            encoder_hidden_states=prompt_embeds,
+            encoder_attention_mask=prompt_attention_mask,
+            timestep=t,
+            return_dict=False,
+        )[0]
+
+        latents_final, last_x0 = pipeline.denoising_step(
+            latents=latents_final,
+            noise_pred=noise_pred,
+            current_timestep=None,
+            conditioning_mask=None,
+            t=t,
+            extra_step_kwargs={},
+            stochastic_sampling=True,
+            return_x0=True,
+        )
+
+        if latents_final.dtype != torch.bfloat16:
+            latents_final = latents_final.to(dtype=torch.bfloat16)
+
+    print("Decoding final video from full denoising pass...")
     final_video = decode_x0_to_video(
-        x0_final,
+        last_x0,
         pipeline,
         num_frames=num_frames,
         height=height,
         width=width,
         is_patchified=True,
     )
-    
-    # Save video to file in grpo/ folder
-    os.makedirs("grpo", exist_ok=True)  # Create grpo folder if it doesn't exist
-    output_filename = f"grpo/final_video_{timestamp}.mp4"
-    
-    # Convert tensor to numpy for saving
-    import numpy as np
-    
-    # Convert bfloat16 to float32, then to numpy
-    video_np = final_video[0].float().cpu().numpy()  # [num_frames, 3, H, W]
-    
-    print(f"  [DEBUG] Video tensor stats before transpose:")
-    print(f"    Shape: {video_np.shape}")
-    print(f"    Min: {video_np.min():.4f}, Max: {video_np.max():.4f}, Mean: {video_np.mean():.4f}")
-    print(f"    Per-channel: R={video_np[:, 0].mean():.4f}, G={video_np[:, 1].mean():.4f}, B={video_np[:, 2].mean():.4f}")
-    
-    # Check color saturation
-    channel_std = np.std([video_np[:, 0].mean(), video_np[:, 1].mean(), video_np[:, 2].mean()])
-    print(f"    Channel std dev: {channel_std:.4f} (low = grayscale)")
-    
-    video_np = np.transpose(video_np, (0, 2, 3, 1))  # [num_frames, H, W, 3]
-    
-    # Video is already in [0, 1] range from image_processor.postprocess()
-    # No additional normalization needed - this was washing out colors!
-    print(f"  [INFO] Video already normalized to [0, 1] by image_processor")
-    print(f"    Current range: [{video_np.min():.4f}, {video_np.max():.4f}]")
-    
-    # Directly convert to uint8 (preserve original color distribution)
-    video_np = (video_np * 255).clip(0, 255).astype(np.uint8)
-    
-    # Final check on uint8 values
-    print(f"  [DEBUG] Final uint8 stats:")
-    print(f"    Min: {video_np.min()}, Max: {video_np.max()}, Mean: {video_np.mean():.1f}")
-    print(f"    Per-channel uint8: R={video_np[:, :, :, 0].mean():.1f}, G={video_np[:, :, :, 1].mean():.1f}, B={video_np[:, :, :, 2].mean():.1f}")
-    
-    
-    # Save as MP4 with high quality settings
-    writer = imageio.get_writer(
-        output_filename, 
-        fps=frame_rate,
-        codec='libx264',
-        quality=10,  # Maximum quality (1-10 scale)
-        pixelformat='yuv420p',  # Standard color format
-        macro_block_size=1,
-        bitrate='8000k',  # High bitrate for crisp output
-        output_params=['-crf', '18']  # Constant Rate Factor: 18 = visually lossless quality
-    )
-    for frame in video_np:
-        writer.append_data(frame)
-    writer.close()
-    
+
+    output_filename = "grpo_final_outputs/final_video_latest.mp4"
+    save_video_to_mp4(final_video, output_filename, frame_rate=frame_rate)
+
     print(f"✅ Final video saved to: {output_filename}")
     print(f"   Resolution: {width}×{height}")
     print(f"   Frames: {num_frames}")
