@@ -15,7 +15,8 @@ Usage:
     )
 """
 
-from peft import get_peft_model, LoraConfig, TaskType
+from peft import LoraConfig, TaskType
+from peft.tuners.lora import LoraModel
 import re
 import torch.nn as nn
 
@@ -53,30 +54,24 @@ def apply_lora_to_model(
     target_modules = []
     
     if target_layers == 'self_attn':
-        # Self-attention (temporal, motion, physics)
+        # Self-attention (attn1) modules in this checkpoint
         target_modules = [
-            "attn.q_proj", "attn.k_proj", "attn.v_proj", "attn.out_proj",
-            "attn1.q_proj", "attn1.k_proj", "attn1.v_proj", "attn1.out_proj",
-            "self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj", "self_attn.out_proj",
+            "attn1.to_q", "attn1.to_k", "attn1.to_v", "attn1.to_out.0",
         ]
         print("🎯 Targeting: Self-Attention (attn1) - Motion & Physics")
         
     elif target_layers == 'cross_attn':
-        # Cross-attention (text conditioning)
+        # Cross-attention (attn2) modules in this checkpoint
         target_modules = [
-            "attn2.q_proj", "attn2.k_proj", "attn2.v_proj", "attn2.out_proj",
-            "cross_attn.q_proj", "cross_attn.k_proj", "cross_attn.v_proj", "cross_attn.out_proj",
+            "attn2.to_q", "attn2.to_k", "attn2.to_v", "attn2.to_out.0",
         ]
         print("🎯 Targeting: Cross-Attention (attn2) - Text Conditioning")
         
     elif target_layers == 'both':
         # Both self and cross attention
         target_modules = [
-            # Self-attention
-            "attn.q_proj", "attn.k_proj", "attn.v_proj", "attn.out_proj",
-            "attn1.q_proj", "attn1.k_proj", "attn1.v_proj", "attn1.out_proj",
-            # Cross-attention
-            "attn2.q_proj", "attn2.k_proj", "attn2.v_proj", "attn2.out_proj",
+            "attn1.to_q", "attn1.to_k", "attn1.to_v", "attn1.to_out.0",
+            "attn2.to_q", "attn2.to_k", "attn2.to_v", "attn2.to_out.0",
         ]
         print("🎯 Targeting: Both Self & Cross Attention - Comprehensive")
         
@@ -96,19 +91,17 @@ def apply_lora_to_model(
         target_modules=target_modules,
         lora_dropout=lora_dropout,
         bias="none",  # Don't apply LoRA to biases
-        task_type=TaskType.CAUSAL_LM,  # General task type
-        # Note: If num_blocks > 0, we'd need to filter manually
-        # PEFT doesn't support "last N blocks" directly
+        task_type=TaskType.CAUSAL_LM,  # required field; we won't use the LM wrapper
     )
-    
-    # Apply LoRA to model
+
+    # Apply LoRA to model using LoraModel to preserve the original forward signature
     print(f"\n📦 Applying LoRA to model...")
     print(f"   Rank: {rank}")
     print(f"   Alpha: {lora_alpha}")
     print(f"   Dropout: {lora_dropout}")
     print(f"   Target modules: {len(target_modules)} patterns")
     
-    model = get_peft_model(model, lora_config)
+    model = LoraModel(model, lora_config, adapter_name="default")
 
     # Optionally restrict LoRA to the last `num_blocks` transformer blocks
     if num_blocks > 0:
@@ -140,8 +133,11 @@ def apply_lora_to_model(
     
     # Print trainable parameters
     print(f"\n✅ LoRA Applied!")
-    model.print_trainable_parameters()
-    
+    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    total = sum(p.numel() for p in model.parameters())
+    pct = (trainable / total) * 100 if total else 0
+    print(f"   Trainable params: {trainable} / {total} ({pct:.2f}%)")
+
     # Calculate recommended learning rate
     recommended_lr = 1e-4 * learning_rate_scale
     print(f"\n📚 Recommended learning rate: {recommended_lr:.2e}")
