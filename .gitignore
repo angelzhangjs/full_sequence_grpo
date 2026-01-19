@@ -1,143 +1,237 @@
-# Python
+# ============================================================================
+# LARGE FILES (>100MB) - Must be excluded from Git
+# ============================================================================
+
+# Video files (typically large)
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.flv
+*.wmv
+*.webm
+*.gif
+
+# Model checkpoints and weights (very large)
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+*.bin
+*.h5
+*.pb
+*.onnx
+
+# ============================================================================
+# TRAINING OUTPUTS
+# ============================================================================
+
+# All GRPO training outputs
+grpo*/
+grpo2*/
+grpo20*/
+grpo_*/
+
+# Baseline outputs
+baseline/
+baseline_output/
+baseline_test/
+
+# Other training outputs
+outputs/
+rollout/
+rollout_x0/
+intermediate_rollout/
+
+# CogVideoX experiments
+cogvideo_baseline/
+cogvideo_grpo_output/
+cogvideo_per_timestep/
+
+# Per-epoch experiments
+ltx_per_epoch/
+grpo_per_epoch/
+
+# LTX-Video outputs
+ltx_video/outputs/
+
+# ============================================================================
+# TRAINING LOGS
+# ============================================================================
+
+# Log files
+**/training_log_*.txt
+**/training_log/
+**/*.log
+
+# Numpy arrays
+*.npy
+*.npz
+
+# ============================================================================
+# PYTHON CACHE
+# ============================================================================
+
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
+
+# ============================================================================
+# VIRTUAL ENVIRONMENTS
+# ============================================================================
+
 venv/
+env/
 ENV/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+.venv
+conda/
+anaconda/
 
-# Model files (usually >100MB)
-*.safetensors
-*.bin
-*.ckpt
-*.pth
-*.pt
-*.pkl
-*.h5
-*.hdf5
-*.pb
-trained_model.pt
-checkpoint*.pt
+# ============================================================================
+# IDE AND EDITOR FILES
+# ============================================================================
 
-# Video outputs (can be large)
-outputs/
-baseline_output/
-*.mp4
-*.avi
-*.mov
-*.mkv
-*.webm
-
-# Training logs
-training_log_*.txt
-*.log
-runs/
-logs/
-tensorboard/
-
-# Cache and temp files
-.cache/
-__pycache__/
-*.pyc
-.ipynb_checkpoints/
-.pytest_cache/
-.mypy_cache/
-
-# OS files
-.DS_Store
-Thumbs.db
+.vscode/
+.idea/
 *.swp
 *.swo
 *~
-
-# IDE
-.vscode/
-.idea/
-*.sublime-*
-
-# Large data files
-*.tar
-*.tar.gz
-*.zip
-*.rar
-*.7z
-data/
-datasets/
-
-# Hugging Face cache
-~/.cache/huggingface/
-
-# Don't ignore the submodule and config
-!ltx_video/
-!configs/
-!*.yaml
-!*.json
-!*.txt
-!prompt.txt
-!requirements.txt
-!README.md
-# Large files - Videos
-*.mp4
-*.avi
-*.mov
-*.mkv
-
-# Model checkpoints and weights
-*.safetensors
-*.pt
-*.pth
-*.ckpt
-*.bin
-
-# Training outputs
-outputs/
-grpo/
-baseline/
-i2v_outputs*/
-baseline_output/
-
-# Training logs (optional - might want to keep)
-# *.txt
-
-# Python cache
-__pycache__/
-*.pyc
-*.pyo
-
-# Jupyter
-.ipynb_checkpoints/
-
-# System files
 .DS_Store
-*.swp
-*.swo
+
+# ============================================================================
+# JUPYTER
+# ============================================================================
+
+.ipynb_checkpoints
+*.ipynb
+
+# ============================================================================
+# DISTRIBUTION / PACKAGING
+# ============================================================================
+
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# ============================================================================
+# DATA FILES
+# ============================================================================
 
 # Large data files
-*.npy
-*.npz
 *.pkl
 *.pickle
-ltx-video-2b-v0.9.5.safetensors
-.git/objects/pack/tmp_pack_sFcmta
-.nfsf07b3d837a2b679c00000002
-ltx-video-2b-v0.9.5.safetensors
-.git/objects/pack/tmp_pack_sFcmta
-.nfsf07b3d837a2b679c00000002
-ltx-video-2b-v0.9.5.safetensors
+*.hdf5
+*.h5
+*.parquet
+
+# Image sequences (if many)
+# Uncomment if you have many images:
+# *.jpg
+# *.jpeg
+# *.png
+
+# ============================================================================
+# HUGGINGFACE CACHE
+# ============================================================================
+
+.cache/
+huggingface/
+transformers_cache/
+~/.cache/huggingface/
+
+# ============================================================================
+# TEMPORARY FILES
+# ============================================================================
+
+*.tmp
+*.temp
+*.cache
+*.bak
+*.swp
+
+# ============================================================================
+# GIT & GITHUB
+# ============================================================================
+
+*.gitattributes
+
+# ============================================================================
+# SUBMODULES (keep structure but ignore content changes)
+# ============================================================================
+
+# Submodules are tracked by .gitmodules
+# Their contents are in separate repos
+
+# ============================================================================
+# OS SPECIFIC
+# ============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+.fuse_hidden*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ============================================================================
+# CONDA / ENVIRONMENT
+# ============================================================================
+
+*.conda
+*.yml.lock
+
+# ============================================================================
+# EXCLUDE PATTERNS FOR LARGE DIRECTORIES
+# ============================================================================
+
+# Any directory with these names
+**/checkpoints/
+**/wandb/
+**/lightning_logs/
+**/tb_logs/
+
+# ============================================================================
+# KEEP THESE (exceptions)
+# ============================================================================
+
+# Keep small essential files even if they match patterns above
+!requirements.txt
+!README.md
+!.gitignore
+!configs/**/*.yaml
+!configs/**/*.yml
+
+# ============================================================================
+# PROJECT-SPECIFIC
+# ============================================================================
+
+# Gemini API uploads
+files/
+
+# Local test outputs
+test_output/
+debug/
+scratch/
+
+# ============================================================================
+# NOTES
+# ============================================================================
+# This .gitignore is comprehensive to prevent accidentally committing:
+# - Large video files (>100MB would fail GitHub push)
+# - Model weights (too large for Git)
+# - Training outputs (regeneratable)
+# - Cache directories (temporary)
+#
+# Only code, configs, and documentation are tracked.
+# ============================================================================

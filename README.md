@@ -34,7 +34,7 @@ pip install -r requirements.txt
 4) Verify
 ```bash
 python -c "import torch; print(f'✓ torch {torch.__version__} CUDA:{torch.cuda.is_available()}')"
-python -c "from ltx_video.inference import create_ltx_video_pipeline; print('✓ LTX-Video OK')"
+python -c "from ltx_video.ltx_video.inference import create_ltx_video_pipeline; print('✓ LTX-Video OK')"
 python -c "import clip; print('✓ CLIP OK')"
 python -c "from reward_functions import reward_function; print('✓ Reward functions OK')"
 ```
@@ -81,7 +81,7 @@ python -c "from reward_functions import reward_function; print('✓ Reward funct
  full_sequence_grpo/
  ├── requirements.txt             # Pip requirements
  ├── requirements_annotated.txt   # Notes and guidance
- ├── grpo/                        # Training outputs
+ ├── grpo<run_id>/                # Training outputs (e.g. grpo20260118_091004/)
  │   ├── final_video_*.mp4
  │   └── training_log_*.txt
  └── baseline/                    # Baseline outputs

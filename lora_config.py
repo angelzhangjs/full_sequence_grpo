@@ -178,7 +178,7 @@ def get_lora_config_motion_focused():
         'rank': 16,
         'lora_alpha': 16,
         'lora_dropout': 0.05,
-        'learning_rate_scale': 0.3,
+        'learning_rate_scale': 1.0,  # Increased from 0.3 to get full 1e-4 LR
     }
 
 

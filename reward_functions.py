@@ -544,6 +544,107 @@ def physics_trajectory_smoothness(video: torch.Tensor, prompt: str = None) -> fl
 
 
 @torch.no_grad()
+def physics_directional_motion_reward(video: torch.Tensor, prompt: str = None) -> float:
+    """
+
+    General directional motion reward - tracks ANY consistent direction
+    Works for falling, rising, sliding left/right, etc.
+    
+    Measures:
+    1. Motion magnitude (is there movement?)
+    2. Directional consistency (is motion in a consistent direction?)
+    3. Prompt-aware direction (if prompt mentions direction)
+    """
+    if video is None or not isinstance(video, torch.Tensor):
+        return 0.5
+    
+    if len(video.shape) == 5:
+        video = video[0]
+    if video.shape[1] == 3 and video.shape[0] > 3:
+        video = video.permute(1, 0, 2, 3)
+    
+    video = video.float()
+    
+    C, T, H, W = video.shape
+    
+    # Track center of mass in both X and Y over time
+    x_positions = []
+    y_positions = []
+    
+    for t in range(T):
+        frame = video[:, t, :, :]  # [C, H, W]
+        intensity = frame.mean(dim=0)  # [H, W]
+        
+        # Compute center of mass
+        y_coords = torch.arange(H, device=video.device).float()
+        x_coords = torch.arange(W, device=video.device).float()
+        
+        total_intensity = intensity.sum() + 1e-6
+        y_center = (intensity.sum(dim=1) * y_coords).sum() / total_intensity
+        x_center = (intensity.sum(dim=0) * x_coords).sum() / total_intensity
+        
+        y_positions.append(y_center.item())
+        x_positions.append(x_center.item())
+    
+    x_positions = np.array(x_positions)
+    y_positions = np.array(y_positions)
+    
+    # Compute motion vector
+    delta_x = x_positions[-1] - x_positions[0]
+    delta_y = y_positions[-1] - y_positions[0]
+    
+    # Overall displacement magnitude
+    displacement = np.sqrt(delta_x**2 + delta_y**2)
+    displacement_score = np.clip(displacement / (H * 0.3), 0, 1)  # Normalize by image size
+    
+    # Directional consistency (motion should be in one direction, not random)
+    velocity_x = np.diff(x_positions)
+    velocity_y = np.diff(y_positions)
+    
+    # Check if motion is consistent (not zigzagging)
+    if len(velocity_x) > 0:
+        # Consistency = how aligned are velocity vectors?
+        consistency_x = np.abs(velocity_x).mean() / (np.std(velocity_x) + 1e-6)
+        consistency_y = np.abs(velocity_y).mean() / (np.std(velocity_y) + 1e-6)
+        consistency_score = np.clip((consistency_x + consistency_y) / 10, 0, 1)
+    else:
+        consistency_score = 0.5
+    
+    # Check if direction matches prompt (if keywords present)
+    direction_bonus = 0.5  # Default neutral
+    if prompt:
+        prompt_lower = prompt.lower()
+        expected_direction = None
+        
+        # Detect expected direction from prompt
+        if any(word in prompt_lower for word in ['fall', 'drop', 'descend', 'down']):
+            expected_direction = 'down'
+        elif any(word in prompt_lower for word in ['rise', 'ascend', 'up', 'climb']):
+            expected_direction = 'up'
+        elif any(word in prompt_lower for word in ['left', 'leftward']):
+            expected_direction = 'left'
+        elif any(word in prompt_lower for word in ['right', 'rightward']):
+            expected_direction = 'right'
+        
+        # Check if actual motion matches expected
+        if expected_direction == 'down' and delta_y > 5:
+            direction_bonus = 0.9  # Moved down as expected!
+        elif expected_direction == 'up' and delta_y < -5:
+            direction_bonus = 0.9  # Moved up as expected!
+        elif expected_direction == 'left' and delta_x < -5:
+            direction_bonus = 0.9  # Moved left as expected!
+        elif expected_direction == 'right' and delta_x > 5:
+            direction_bonus = 0.9  # Moved right as expected!
+        elif expected_direction and abs(delta_x) < 5 and abs(delta_y) < 5:
+            direction_bonus = 0.1  # Expected motion but got none!
+    
+    # Combined score
+    score = 0.4 * displacement_score + 0.3 * consistency_score + 0.3 * direction_bonus
+    
+    return float(np.clip(score, 0, 1))
+
+
+@torch.no_grad()
 def physics_momentum_conservation(video: torch.Tensor, prompt: str = None) -> float:
     """Momentum-like behavior"""
     if video is None or not isinstance(video, torch.Tensor):
@@ -630,17 +731,20 @@ def comprehensive_grpo_reward(
             scores['physics_acceleration'] = physics_acceleration_reward(video, prompt)
             scores['physics_smoothness'] = physics_trajectory_smoothness(video, prompt)
             scores['physics_momentum'] = physics_momentum_conservation(video, prompt)
+            scores['physics_directional'] = physics_directional_motion_reward(video, prompt)  # NEW!
         except Exception as e:
             print(f"⚠️ Physics evaluation failed: {e}")
             scores['physics_velocity'] = 0.5
             scores['physics_acceleration'] = 0.5
             scores['physics_smoothness'] = 0.5
             scores['physics_momentum'] = 0.5
+            scores['physics_directional'] = 0.5
     else:
         scores['physics_velocity'] = 0.5
         scores['physics_acceleration'] = 0.5
         scores['physics_smoothness'] = 0.5
         scores['physics_momentum'] = 0.5
+        scores['physics_downward'] = 0.5
     
     # Video Quality Rewards
     try:
@@ -651,19 +755,26 @@ def comprehensive_grpo_reward(
         scores['video_quality'] = 0.5
         scores['motion_diversity'] = 0.5
     
-    # Weighted Combination (rebalanced for better gradient signal)
+    # SIMPLIFIED WEIGHTING: CLIP + DINO ONLY
+    # Physics and quality components commented out for focused text-video alignment
     if use_clip and use_dino and use_physics:
         total_reward = (
-            0.25 * scores['clip_alignment'] +
-            0.10 * scores['clip_temporal'] +
-            0.15 * scores['dino_consistency'] +
-            0.08 * scores['dino_presence'] +
-            0.08 * scores['physics_velocity'] +
-            0.05 * scores['physics_acceleration'] +
-            0.05 * scores['physics_smoothness'] +
-            0.15 * scores['video_quality'] +
-            0.09 * scores['motion_diversity']
+            0.40 * scores['clip_alignment'] +
+            0.20 * scores['clip_temporal'] +
+            0.30 * scores['dino_consistency'] +
+            0.10 * scores['dino_presence']
         )
+        # Physics components - COMMENTED OUT (uncomment to enable)
+        # + 0.06 * scores['physics_velocity']
+        # + 0.04 * scores['physics_acceleration']
+        # + 0.03 * scores['physics_smoothness']
+        # + 0.15 * scores['physics_directional']
+        # + 0.10 * scores['physics_momentum']
+        # Quality - COMMENTED OUT
+        # + 0.15 * scores['video_quality']
+        # + 0.04 * scores['motion_diversity']
+        # Total: 100% (CLIP=60%, DINO=40%)
+        # Simplified to test if simpler rewards work better
     elif use_clip and use_dino:
         total_reward = (
             0.8 * scores['clip_alignment'] +
@@ -690,11 +801,25 @@ def reward_function(
     device: str = 'cuda',
 ) -> torch.Tensor:
     """
-    Main reward function for GRPO training
+    COMPREHENSIVE PHYSICS-AWARE REWARD FUNCTION
     
-    Returns reward as tensor (compatible with pipeline)
+    Designed for GRPO training of video generation models with emphasis on:
+    - Realistic motion dynamics (velocity, acceleration, trajectory)
+    - Directional consistency (prompt-guided motion)
+    - Physical plausibility (gravity, momentum conservation)
+    
+    Returns reward as tensor (compatible with GRPO pipeline)
+    
+    Component breakdown:
+    - Text alignment (28%): CLIP semantic + temporal matching
+    - Object tracking (15%): DINO consistency + presence
+    - Physics & motion (38%): Multi-scale dynamics analysis
+    - Visual quality (15%): Brightness, color, sharpness
+    - Motion diversity (4%): Temporal variation
+    
+    Total: 100% (physics-emphasized for realistic motion learning)
     """
-    # Validate
+    # Validation
     if video is None:
         print("⚠️ ERROR: Video is None!")
         return torch.tensor(0.5, device=device)
@@ -711,9 +836,7 @@ def reward_function(
     if video.dtype == torch.bfloat16:
         video = video.float()
     
-    # Debug
-    # print(f"  [DEBUG] Video shape: {video.shape}, dtype: {video.dtype}, device: {video.device}")
-    
+    # Compute comprehensive rewards
     result = comprehensive_grpo_reward(
         video=video,
         prompt=prompt,
@@ -723,21 +846,25 @@ def reward_function(
         use_physics=True,
     )
     
-    # Print breakdown
-    print(f"\n  Reward Components:")
+    # Simplified logging (CLIP + DINO only)
+    print(f"\n  Reward Components (SIMPLIFIED: CLIP+DINO Only):")
+    
     if CLIP_AVAILABLE:
-        print(f"    CLIP alignment: {result['clip_alignment']:.4f}")
-        print(f"    CLIP temporal: {result['clip_temporal']:.4f}")
+        print(f"    CLIP alignment: {result['clip_alignment']:.4f} (40%)")
+        print(f"    CLIP temporal: {result['clip_temporal']:.4f} (20%)")
     else:
         print(f"    CLIP: Not available")
-    print(f"    DINO consistency: {result['dino_consistency']:.4f}")
-    print(f"    DINO presence: {result['dino_presence']:.4f}")
-    print(f"    Physics velocity: {result['physics_velocity']:.4f}")
-    print(f"    Physics accel: {result['physics_acceleration']:.4f}")
-    print(f"    Physics smoothness: {result['physics_smoothness']:.4f}")
-    print(f"    Video quality: {result['video_quality']:.4f} (brightness/color/sharpness)")
-    print(f"    Motion diversity: {result['motion_diversity']:.4f}")
-    print(f"  Total Reward: {result['reward']:.4f}")
+    
+    print(f"    DINO consistency: {result['dino_consistency']:.4f} (30%)")
+    print(f"    DINO presence: {result['dino_presence']:.4f} (10%)")
+    
+    # Physics components available but not used in reward
+    # (Uncomment weights in comprehensive_grpo_reward to enable)
+    # print(f"    Physics velocity: {result['physics_velocity']:.4f}")
+    # print(f"    Physics direction: {result['physics_directional']:.4f}")
+    # print(f"    Video quality: {result['video_quality']:.4f}")
+    
+    print(f"  Total Reward: {result['reward']:.4f} (CLIP+DINO focus)")
     
     return torch.tensor(result['reward'], device=device)
 

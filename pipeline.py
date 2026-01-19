@@ -19,6 +19,15 @@ from helper import decode_x0_to_video
 from reward_functions import reward_function, clear_model_cache
 from gemini_rewards import score_video_with_gemini
 
+# ============================================================================
+# Output directory (training artifacts, logs, videos)
+# ============================================================================
+# Use a per-run output directory: grpo{RUN_ID}. You can override RUN_ID/OUTPUT_DIR:
+#   RUN_ID=20260118_091004 python pipeline.py
+#   OUTPUT_DIR=custom_folder python pipeline.py
+RUN_ID = os.getenv("RUN_ID") or datetime.now().strftime("%Y%m%d_%H%M%S")
+OUTPUT_DIR = os.getenv("OUTPUT_DIR") or f"grpo{RUN_ID}"
+
 # Clear any cached models to ensure proper dtype loading
 clear_model_cache()
 import numpy as np
@@ -27,6 +36,37 @@ import random
 # Set Random Seeds for Reproducibility
 # ============================================================================
 SEED = 2026
+
+def set_seed(seed: int, *, deterministic: bool = False) -> None:
+    """Best-effort reproducibility across python/numpy/torch."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    if deterministic:
+        # Note: may reduce performance and can raise if an op has no deterministic kernel.
+        # For CUDA GEMM ops (CuBLAS), PyTorch requires CUBLAS_WORKSPACE_CONFIG to be set
+        # for deterministic behavior; otherwise it can error out at runtime.
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
+        if torch.cuda.is_available() and not os.getenv("CUBLAS_WORKSPACE_CONFIG"):
+            print(
+                "⚠️  DETERMINISTIC=1 requested, but CUBLAS_WORKSPACE_CONFIG is not set. "
+                "Skipping torch.use_deterministic_algorithms(True) to avoid CuBLAS runtime errors.\n"
+                "   To fully enable determinism, run:\n"
+                "     export CUBLAS_WORKSPACE_CONFIG=:4096:8\n"
+                "     DETERMINISTIC=1 python pipeline.py"
+            )
+        else:
+            try:
+                torch.use_deterministic_algorithms(True)
+            except Exception:
+                pass
+
+# Enable deterministic mode by setting DETERMINISTIC=1
+DETERMINISTIC = os.getenv("DETERMINISTIC", "0") == "1"
+set_seed(SEED, deterministic=DETERMINISTIC)
 # ============================================================================
 # Setup Logging to File
 # ============================================================================
@@ -54,8 +94,32 @@ def save_video_to_mp4(video_tensor, out_path, frame_rate: int = 16):
     """
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    video_np = video_tensor[0].float().cpu().numpy()  # [T, 3, H, W]
+     
+    # ============================================================================
+    # Robustly map to uint8 frames; guards against NaNs/Infs and unexpected ranges.
+    # ============================================================================
+    vt = video_tensor.detach().float().cpu()
+    if not torch.isfinite(vt).all():
+        bad = (~torch.isfinite(vt)).float().mean().item() * 100.0
+        print(f"⚠️  save_video_to_mp4: non-finite values in video tensor ({bad:.4f}%); replacing with 0/1")
+        vt = torch.nan_to_num(vt, nan=0.0, posinf=1.0, neginf=0.0)
+
+    vmin = vt.min().item()
+    vmax = vt.max().item()
+    if vmin < -0.01 or vmax > 1.01:
+        # Some decoders return [-1, 1]; rescale if it looks like that.
+        if vmin >= -1.01 and vmax <= 1.01:
+            vt = (vt + 1.0) / 2.0
+        else:
+            # Fallback: normalize per-video to [0, 1] to avoid "all black" outputs.
+            denom = max(vmax - vmin, 1e-8)
+            vt = (vt - vmin) / denom
+        vt = vt.clamp(0.0, 1.0)
+
+    video_np = vt[0].numpy()  # [T, 3, H, W]
     video_np = np.transpose(video_np, (0, 2, 3, 1))  # [T, H, W, 3]
+    
+    
     video_np = (video_np * 255).clip(0, 255).astype(np.uint8)
     
     writer = imageio.get_writer(
@@ -71,10 +135,10 @@ def save_video_to_mp4(video_tensor, out_path, frame_rate: int = 16):
         writer.append_data(frame)
     writer.close()
 
-# Create log file with timestamp in grpo/ folder
-os.makedirs("grpo", exist_ok=True)  # Create grpo folder if it doesn't exist
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-log_filename = f"grpo/training_log_{timestamp}.txt"
+# Create log file with timestamp in OUTPUT_DIR folder
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+timestamp = RUN_ID
+log_filename = f"{OUTPUT_DIR}/training_log_{timestamp}.txt"
 logger = TeeLogger(log_filename)
 sys.stdout = logger
 sys.stderr = logger  # Also capture warnings/errors
@@ -88,7 +152,7 @@ print("="*70 + "\n")
 # Load Pipeline
 # ============================================================================
 # Using 2B model for faster training and lower memory usage
-config_path = "configs/ltxv-2b-0.9.5.yaml"  # Using GRPO config (no prompt enhancer)
+config_path = "configs/ltxv-2b-0.9.5.yaml"  # Exact config from reference run
 cfg = load_pipeline_config(config_path)
 ckpt_name = cfg["checkpoint_path"]   # load the checkpoint name from the config file
 
@@ -140,13 +204,13 @@ vae = pipeline.vae
 USE_GEMINI_RANKING = True
 GEMINI_MODEL_NAME = "models/gemini-2.5-flash"
 
-# Timesteps (increase to 40 for finer denoising; higher cost/memory)
-scheduler.set_timesteps(40, device="cuda")
+# Timesteps - exact match to reference run
+scheduler.set_timesteps(40, device="cuda")  # 40 total steps
 timesteps = scheduler.timesteps
 
 # GRPO only on last N timesteps (fine details and motion)
 # Early timesteps (high noise) are just rough structure, don't need GRPO
-NUM_GRPO_STEPS = 15  # Increased from 10 for more training
+NUM_GRPO_STEPS = 15  # Last 15 steps (26-40) - exact match to reference
 timesteps_for_grpo = timesteps[-NUM_GRPO_STEPS:]  
 print(f"Total timesteps: {len(timesteps)} steps [{timesteps[0]:.4f} → {timesteps[-1]:.4f}]")
 print(f"GRPO training on: Last {NUM_GRPO_STEPS} steps [{timesteps_for_grpo[0]:.4f} → {timesteps_for_grpo[-1]:.4f}]")
@@ -185,7 +249,7 @@ print(f"prompt_embeds: {prompt_embeds.shape}\n")
 # 5 seconds at 16 fps = 80 frames
 height = 512
 width = 768
-num_frames = 80  # exact 5 seconds at 16 fps
+num_frames = 81  # Exact match to reference run (5.06 seconds @ 16fps)
 frame_rate = 16
 
 print(f"Training will decode {num_frames}-frame videos at each step")
@@ -213,18 +277,32 @@ USE_LORA = True  # Set to True to use LoRA (requires: pip install --upgrade tran
 
 if USE_LORA:
     # ========================================================================
+    # CRITICAL: Create baseline BEFORE applying LoRA!
+    # ========================================================================
+    print("\n" + "="*70)
+    print("CREATING BASELINE (Before LoRA)")
+    print("="*70 + "\n")
+    
+    print("Creating frozen baseline model (pretrained, no LoRA)...")
+    baseline_model = copy.deepcopy(model)  # Copy BEFORE LoRA!
+    baseline_model.eval()
+    for param in baseline_model.parameters():
+        param.requires_grad = False
+    print("✅ Baseline frozen (pretrained model, no LoRA)\n")
+    
+    # ========================================================================
     # LoRA Method - Stable fine-tuning for multiple attention layers
     # ========================================================================
     from lora_config import apply_lora_to_model, get_lora_config_motion_focused
     
-    print("\n" + "="*70)
+    print("="*70)
     print("APPLYING LORA FOR STABLE FINE-TUNING")
     print("="*70 + "\n")
     
     # Choose configuration:
     config = get_lora_config_motion_focused()  # Self-attn in 5 blocks (motion/physics)
     
-    # Apply LoRA to model
+    # Apply LoRA to model (baseline already created above!)
     model, recommended_lr = apply_lora_to_model(model, **config)
     pipeline.transformer = model  # Update pipeline reference
     
@@ -238,8 +316,76 @@ if USE_LORA:
     print(f"✅ LoRA initialized with LR={recommended_lr:.2e}\n")
 
 else:
-    raise ValueError("LoRA is not used, Traditional method not implemented")
+    # ========================================================================
+    # Traditional Unfreezing - Match Reference Run Exactly
+    # ========================================================================
+    print("\n" + "="*70)
+    print("TRADITIONAL UNFREEZING (Attention Layers)")
+    print("="*70 + "\n")
     
+    # Exact settings from reference run
+    TOTAL_BLOCKS = 28
+    ATTN1_BLOCKS = [24, 25, 26, 27]  # Last 4 blocks
+    ATTN2_BLOCK = 27  # Only last block
+    
+    print(f"🎯 Unfreezing Strategy:")
+    print(f"   Self-Attention (attn1): Blocks {ATTN1_BLOCKS[0]}-{ATTN1_BLOCKS[-1]} (last 4 blocks)")
+    print(f"   Cross-Attention (attn2): Block {ATTN2_BLOCK} only\n")
+    
+    # Freeze all first
+    for param in model.parameters():
+        param.requires_grad = False
+    
+    unfrozen_params = []
+    
+    for name, param in model.named_parameters():
+        should_unfreeze = False
+        layer_type = None
+        
+        # Unfreeze self-attention in blocks 24-27
+        for block_idx in ATTN1_BLOCKS:
+            if f"transformer_blocks.{block_idx}." in name:
+                if any(p in name for p in ["attn1.to_q", "attn1.to_k", "attn1.to_v", "attn1.to_out"]):
+                    if "attn2" not in name:
+                        should_unfreeze = True
+                        layer_type = "attn1"
+                        break
+        
+        # Unfreeze cross-attention in block 27
+        if f"transformer_blocks.{ATTN2_BLOCK}." in name:
+            if any(p in name for p in ["attn2.to_q", "attn2.to_k", "attn2.to_v", "attn2.to_out"]):
+                should_unfreeze = True
+                layer_type = "attn2"
+        
+        if should_unfreeze:
+            param.requires_grad = True
+            unfrozen_params.append(param)
+            print(f"  Unfreezing [{layer_type}]: {name} - {param.shape}")
+    
+    print(f"\n✅ Unfreezing Summary:")
+    print(f"   Self-attention (attn1) params: {sum(1 for n,p in model.named_parameters() if p.requires_grad and 'attn1' in n)}")
+    print(f"   Cross-attention (attn2) params: {sum(1 for n,p in model.named_parameters() if p.requires_grad and 'attn2' in n)}")
+    print(f"   Total unfrozen parameters: {len(unfrozen_params)}")
+    print(f"   Total param count: {sum(p.numel() for p in unfrozen_params):,}")
+    
+    # Exact LR from reference
+    lr = 1e-05
+    print(f"   Using GENTLE LR to preserve baseline: {lr:.2e}\n")
+    
+    optimizer = torch.optim.Adam(
+        unfrozen_params,
+        lr=lr,
+        betas=(0.9, 0.95),
+        weight_decay=0.01
+    )
+    
+    # Create baseline model (frozen copy)
+    print("Creating frozen baseline model for GRPO comparison...")
+    baseline_model = copy.deepcopy(model)
+    baseline_model.eval()
+    for param in baseline_model.parameters():
+        param.requires_grad = False
+    print("✅ Baseline model frozen (will not be updated)\n")
 # ============================================================================
 # Initialize Latents and Run Non-GRPO Steps
 # ============================================================================
@@ -268,16 +414,11 @@ pixel_coords = latent_to_pixel_coords(
 indices_grid = pixel_coords.to(torch.float32)
 indices_grid[:, 0] *= (1.0 / frame_rate)
 
-# ============================================================================
-# Create Frozen Baseline Model for GRPO
-# ============================================================================
-print("Creating frozen baseline model for GRPO comparison...")
-baseline_model = copy.deepcopy(model)
-baseline_model.eval()  # Set to eval mode
-# Freeze all parameters
-for param in baseline_model.parameters():
-    param.requires_grad = False
-print("✅ Baseline model frozen (will not be updated)\n")
+# Baseline already created before LoRA application (see above)
+# Baseline video will be generated AFTER training to avoid OOM
+
+print("⚠️  Note: Baseline video generation skipped before training (OOM risk)")
+print("   Will generate after training when memory is available\n")
 
 # ============================================================================
 # Run Standard Denoising for First N Steps (No GRPO)
@@ -398,13 +539,14 @@ for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last N timesteps
                     width=width,
                     is_patchified=True,
                 )
-            # Save rollout video for Gemini ranking
-            rollout_path = Path("rollout_40_15_handcraft") / f"rollout_step{i}_r{rollout_index}_{timestamp}.mp4"
+            # Save intermediate rollout video (for Gemini ranking + debugging)
+            rollout_dir = Path(OUTPUT_DIR) / "intermediate_rollout"
+            rollout_path = rollout_dir / f"rollout_step{i}_r{rollout_index}_{timestamp}.mp4"
             save_video_to_mp4(video_x0, rollout_path, frame_rate=frame_rate)
             rollout_video_paths.append(rollout_path)
             print(f"  Saved rollout video: {rollout_path}")
             # Save latent x0 as numpy for later analysis/ranking if needed
-            rollout_x0_path = Path("rollout_40_15_handcraft_x0") / f"rollout_step{i}_r{rollout_index}_{timestamp}.npy"
+            rollout_x0_path = rollout_dir / "x0" / f"rollout_step{i}_r{rollout_index}_{timestamp}.npy"
             rollout_x0_path.parent.mkdir(parents=True, exist_ok=True)
             np.save(rollout_x0_path, x0_est.detach().float().cpu().numpy())
             # Handcrafted reward
@@ -474,7 +616,7 @@ for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last N timesteps
             print(f"  Rollout {k}: reward={rewards[k]:.4f}, advantage={advantage_rewards[k]:.4f}")
     
         # Write per-timestep log summary to file
-        log_dir = Path("rollout_40_15_handcraft_txt")
+        log_dir = Path(OUTPUT_DIR) / "intermediate_rollout" / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / f"timestep_{i}_{timestamp}.txt"
         with log_file.open("w") as f:
@@ -624,15 +766,34 @@ print("="*70 + "\n")
 # Generate and Save Final Video with Updated Weights
 # ============================================================================
 print("\n" + "="*70)
-print("GENERATING FINAL VIDEO WITH UPDATED WEIGHTS")
+print("GENERATING FINAL VIDEOS")
 print("="*70 + "\n")
 
-# Create outputs directory if it doesn't exist
+# Free up memory before video generation
+print("Clearing GPU memory...")
+torch.cuda.empty_cache()
+print(f"Free VRAM: {torch.cuda.mem_get_info()[0] / 1024**3:.1f} GB\n")
+
+# Create outputs directory
 os.makedirs("outputs", exist_ok=True)
 
-# Generate final video with a full forward pass over all timesteps
+# Baseline video generation skipped (OOM with 80 frames)
+# Use pipeline.sh for baseline via separate inference
+
+# ============================================================================
+# STEP 2: Generate TRAINED Video (With LoRA Updates)
+# ============================================================================
+print("Step 2/2: Generating final video (with LoRA training)...")
 with torch.no_grad():
+    # Re-seed before final generation so results don't depend on how much RNG
+    # was consumed during training/rollouts.
+    set_seed(SEED, deterministic=DETERMINISTIC)
+    # Avoid any training-time behaviors (dropout, etc.) during final generation
+    model.eval()
+    baseline_model.eval()
+
     # Re-initialize latents for a clean generation pass
+    final_gen = torch.Generator(device="cuda").manual_seed(SEED) if torch.cuda.is_available() else None
     latents_final = pipeline.prepare_latents(
         latents=None,
         media_items=None,
@@ -646,7 +807,7 @@ with torch.no_grad():
         ),
         dtype=torch.bfloat16,
         device=torch.device("cuda"),
-        generator=None,
+        generator=final_gen,
     )
     latents_final, latent_coords_final = pipeline.patchifier.patchify(latents_final)
     pixel_coords_final = latent_to_pixel_coords(
@@ -658,7 +819,32 @@ with torch.no_grad():
     indices_grid_final[:, 0] *= (1.0 / frame_rate)
 
     last_x0 = None
-    for t in timesteps:
+    # IMPORTANT: mirror the training schedule for stability.
+    # Phase 1) early timesteps: baseline model, deterministic (no x0 needed)
+    for t in timesteps[:num_standard_steps]:
+        noise_pred = baseline_model(
+            latents_final,
+            indices_grid=indices_grid_final,
+            encoder_hidden_states=prompt_embeds,
+            encoder_attention_mask=prompt_attention_mask,
+            timestep=t,
+            return_dict=False,
+        )[0]
+        latents_final = pipeline.denoising_step(
+            latents=latents_final,
+            noise_pred=noise_pred,
+            current_timestep=None,
+            conditioning_mask=None,
+            t=t,
+            extra_step_kwargs={},
+            stochastic_sampling=False,
+            return_x0=False,
+        )
+        if latents_final.dtype != torch.bfloat16:
+            latents_final = latents_final.to(dtype=torch.bfloat16)
+
+    # Phase 2) last NUM_GRPO_STEPS: trained model, stochastic + keep x0 for decoding
+    for t in timesteps_for_grpo:
         noise_pred = model(
             latents_final,
             indices_grid=indices_grid_final,
@@ -692,13 +878,29 @@ with torch.no_grad():
         is_patchified=True,
     )
 
-    output_filename = "grpo_final_outputs/final_video_latest.mp4"
+    output_filename = f"{OUTPUT_DIR}/final_video_{timestamp}.mp4"
     save_video_to_mp4(final_video, output_filename, frame_rate=frame_rate)
 
-    print(f"✅ Final video saved to: {output_filename}")
+    print(f"✅ Trained video saved: {output_filename}")
     print(f"   Resolution: {width}×{height}")
     print(f"   Frames: {num_frames}")
     print(f"   Duration: {num_frames/frame_rate:.2f}s")
+    print()
+
+# ============================================================================
+# Comparison Summary
+# ============================================================================
+print("="*70)
+print("OUTPUT SUMMARY")
+print("="*70)
+print()
+print(f"📹 Trained video (after GRPO with LoRA):")
+print(f"   {output_filename}")
+print()
+print(f"📹 For baseline comparison:")
+print(f"   Run: bash pipeline.sh")
+print(f"   (Generates baseline via separate inference to avoid OOM)")
+print("="*70)
 
 # ============================================================================
 # Close Log File

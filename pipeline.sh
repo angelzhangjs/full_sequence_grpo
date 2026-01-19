@@ -18,6 +18,11 @@ echo "📝 Using prompt from prompt.txt:"
 echo "   \"$PROMPT\""
 echo ""
 
+# Per-run output folder name (shared with pipeline.py via RUN_ID)
+RUN_ID="$(date +%Y%m%d_%H%M%S)"
+export RUN_ID
+GRPO_OUTDIR="grpo${RUN_ID}"
+
 # ======================================================================
 # STEP 1: Run GRPO Training
 # ======================================================================
@@ -47,7 +52,7 @@ echo "======================================================================"
 echo ""
 echo "Running inference with:"
 echo "  Prompt: \"$PROMPT\""
-echo "  Config: ltxv-2b-0.9.8-distilled-no-enhancer.yaml (no Florence-2)"
+echo "  Config: ltxv-2b-0.9.8-distilled.yaml"
 echo "  Frames: 125"
 echo "  Seed: 42"
 echo ""
@@ -57,12 +62,12 @@ cd ltx_video
 python run_inference.py \
     --pipeline_config configs/ltxv-2b-0.9.8-distilled-no-enhancer.yaml \
     --prompt "$PROMPT" \
-    --output_path ../baseline \
+    --output_path "../${GRPO_OUTDIR}/baseline" \
     --height 512 \
     --width 768 \
-    --num_frames 125 \
-    --frame_rate 25 \
-    --seed 42
+    --num_frames 80 \
+    --frame_rate 16 \
+    --seed 2026
 
 if [ $? -eq 0 ]; then
     echo ""
@@ -83,20 +88,8 @@ echo "======================================================================"
 echo "Organizing outputs..."
 echo "======================================================================"
 
-# Create grpo directory if it doesn't exist
-mkdir -p grpo
-
-# Move GRPO trained video to grpo folder
-if [ -f outputs/final_video_*.mp4 ]; then
-    mv outputs/final_video_*.mp4 grpo/
-    echo "✅ Moved GRPO video to grpo/"
-fi
-
-# Move training log to grpo folder
-if [ -f training_log_*.txt ]; then
-    mv training_log_*.txt grpo/
-    echo "✅ Moved training log to grpo/"
-fi
+# pipeline.py already writes outputs into ${GRPO_OUTDIR}/
+echo "GRPO outputs are in: ${GRPO_OUTDIR}/"
 
 echo ""
 
@@ -107,15 +100,18 @@ echo "======================================================================"
 echo "PIPELINE COMPLETE! 🎉"
 echo "======================================================================"
 echo ""
-echo "📂 Output locations:"
-echo "  1. GRPO trained video:  grpo/final_video_*.mp4"
-echo "  2. Baseline video:      baseline/video_output_*.mp4"
-echo "  3. Training log:        grpo/training_log_*.txt"
+echo "📂 Output location:"
+echo "  ${GRPO_OUTDIR}/"
 echo ""
-echo "Full paths:"
-echo "  GRPO:     /home/ubuntu/angel-research/full_sequence_grpo/grpo/"
-echo "  Baseline: /home/ubuntu/angel-research/full_sequence_grpo/baseline/"
+echo "Files:"
+echo "  📹 Baseline (pretrained):  ${GRPO_OUTDIR}/baseline/video_output_*.mp4"
+echo "  📹 Trained (GRPO+LoRA):   ${GRPO_OUTDIR}/final_video_*.mp4"
+echo "  📄 Training log:          ${GRPO_OUTDIR}/training_log_*.txt"
+echo "  📁 Rollout videos:        ${GRPO_OUTDIR}/intermediate_rollout/"
 echo ""
-echo "Compare them to see the improvement from GRPO training!"
+echo "Both videos are in the SAME folder for easy comparison!"
+echo ""
+echo "Full path:"
+echo "  /home/ubuntu/angel-research/full_sequence_grpo/${GRPO_OUTDIR}/"
 echo "======================================================================"
 

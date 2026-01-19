@@ -1,7 +1,0 @@
-Timestep index: 7
-Reward mean: 0.503044
-Reward std: 0.005758
-Rollouts:
-  r=0: file=rollout_40_15_handcraft/rollout_step7_r0_20251229_081217.mp4, reward=0.497883, advantage=-0.881065
-  r=1: file=rollout_40_15_handcraft/rollout_step7_r1_20251229_081217.mp4, reward=0.501995, advantage=-0.179112
-  r=2: file=rollout_40_15_handcraft/rollout_step7_r2_20251229_081217.mp4, reward=0.509255, advantage=1.060161

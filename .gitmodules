@@ -1,3 +1,12 @@
 [submodule "ltx_video"]
 	path = ltx_video
 	url = git@github.com:Lightricks/LTX-Video.git
+[submodule "diffusion-forcing"]
+	path = diffusion-forcing
+	url = https://github.com/buoyancy99/diffusion-forcing.git
+[submodule "scaling-noise"]
+	path = scaling-noise
+	url = https://github.com/yanghlll/ScalingNoise.git
+[submodule "GeometryForcing"]
+	path = GeometryForcing
+	url = https://github.com/CIntellifusion/GeometryForcing
