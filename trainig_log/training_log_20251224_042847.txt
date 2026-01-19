@@ -1,6 +1,0 @@
-======================================================================
-LTX-VIDEO PIPELINE - DENOISING WITH X0 PREDICTIONS
-Logging to: training_log_20251224_042847.txt
-======================================================================
-
-Downloading ltxv-2b-0.9.8-distilled.safetensors...

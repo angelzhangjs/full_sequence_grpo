@@ -1,205 +1,0 @@
-======================================================================
-LTX-VIDEO PIPELINE - DENOISING WITH X0 PREDICTIONS
-Logging to: training_log_20251222_001808.txt
-======================================================================
-
-Downloading ltxv-2b-0.9.8-distilled.safetensors...
-ltxv-2b-0.9.8-distilled.safetensors:   0%|          | 0.00/6.34G [00:00<?, ?B/s]ltxv-2b-0.9.8-distilled.safetensors:   0%|          | 665k/6.34G [00:01<4:27:08, 396kB/s]ltxv-2b-0.9.8-distilled.safetensors:   0%|          | 2.00M/6.34G [00:02<1:44:56, 1.01MB/s]ltxv-2b-0.9.8-distilled.safetensors:   1%|1         | 69.1M/6.34G [00:02<02:20, 44.6MB/s]  ltxv-2b-0.9.8-distilled.safetensors:   2%|2         | 136M/6.34G [00:02<01:06, 94.0MB/s] ltxv-2b-0.9.8-distilled.safetensors:   3%|3         | 203M/6.34G [00:03<01:02, 98.3MB/s]ltxv-2b-0.9.8-distilled.safetensors:  15%|#4        | 941M/6.34G [00:03<00:07, 701MB/s] ltxv-2b-0.9.8-distilled.safetensors:  18%|#8        | 1.14G/6.34G [00:03<00:07, 739MB/s]ltxv-2b-0.9.8-distilled.safetensors:  21%|##1       | 1.35G/6.34G [00:03<00:05, 839MB/s]ltxv-2b-0.9.8-distilled.safetensors:  24%|##4       | 1.55G/6.34G [00:04<00:08, 555MB/s]ltxv-2b-0.9.8-distilled.safetensors:  35%|###4      | 2.22G/6.34G [00:04<00:03, 1.16GB/s]ltxv-2b-0.9.8-distilled.safetensors:  40%|####      | 2.56G/6.34G [00:04<00:03, 1.14GB/s]ltxv-2b-0.9.8-distilled.safetensors:  45%|####4     | 2.82G/6.34G [00:05<00:03, 1.05GB/s]ltxv-2b-0.9.8-distilled.safetensors:  48%|####7     | 3.02G/6.34G [00:05<00:03, 1.07GB/s]ltxv-2b-0.9.8-distilled.safetensors:  51%|#####     | 3.22G/6.34G [00:05<00:02, 1.07GB/s]ltxv-2b-0.9.8-distilled.safetensors:  54%|#####4    | 3.42G/6.34G [00:05<00:02, 1.10GB/s]ltxv-2b-0.9.8-distilled.safetensors:  57%|#####7    | 3.63G/6.34G [00:06<00:02, 1.10GB/s]ltxv-2b-0.9.8-distilled.safetensors:  59%|#####9    | 3.76G/6.34G [00:06<00:02, 1.09GB/s]ltxv-2b-0.9.8-distilled.safetensors:  61%|######1   | 3.89G/6.34G [00:06<00:02, 1.10GB/s]ltxv-2b-0.9.8-distilled.safetensors:  64%|######3   | 4.03G/6.34G [00:06<00:02, 1.11GB/s]ltxv-2b-0.9.8-distilled.safetensors:  66%|######5   | 4.16G/6.34G [00:06<00:02, 1.03GB/s]ltxv-2b-0.9.8-distilled.safetensors:  68%|######7   | 4.30G/6.34G [00:06<00:01, 1.05GB/s]ltxv-2b-0.9.8-distilled.safetensors:  70%|######9   | 4.43G/6.34G [00:06<00:01, 1.06GB/s]ltxv-2b-0.9.8-distilled.safetensors:  72%|#######1  | 4.56G/6.34G [00:06<00:01, 1.04GB/s]ltxv-2b-0.9.8-distilled.safetensors:  74%|#######4  | 4.70G/6.34G [00:07<00:01, 1.08GB/s]ltxv-2b-0.9.8-distilled.safetensors:  76%|#######6  | 4.83G/6.34G [00:07<00:01, 1.01GB/s]ltxv-2b-0.9.8-distilled.safetensors:  78%|#######8  | 4.97G/6.34G [00:07<00:01, 957MB/s] ltxv-2b-0.9.8-distilled.safetensors:  80%|########  | 5.10G/6.34G [00:07<00:01, 953MB/s]ltxv-2b-0.9.8-distilled.safetensors:  83%|########2 | 5.23G/6.34G [00:07<00:01, 925MB/s]ltxv-2b-0.9.8-distilled.safetensors:  85%|########4 | 5.37G/6.34G [00:07<00:01, 913MB/s]ltxv-2b-0.9.8-distilled.safetensors:  87%|########6 | 5.50G/6.34G [00:07<00:00, 904MB/s]ltxv-2b-0.9.8-distilled.safetensors:  89%|########8 | 5.63G/6.34G [00:08<00:00, 902MB/s]ltxv-2b-0.9.8-distilled.safetensors:  91%|######### | 5.77G/6.34G [00:08<00:00, 900MB/s]ltxv-2b-0.9.8-distilled.safetensors:  93%|#########3| 5.90G/6.34G [00:08<00:00, 899MB/s]ltxv-2b-0.9.8-distilled.safetensors:  95%|#########5| 6.04G/6.34G [00:08<00:00, 896MB/s]ltxv-2b-0.9.8-distilled.safetensors:  97%|#########7| 6.17G/6.34G [00:08<00:00, 915MB/s]ltxv-2b-0.9.8-distilled.safetensors:  99%|#########8| 6.27G/6.34G [00:08<00:00, 904MB/s]ltxv-2b-0.9.8-distilled.safetensors: 100%|##########| 6.34G/6.34G [00:08<00:00, 715MB/s]
-config.json:   0%|          | 0.00/788 [00:00<?, ?B/s]config.json: 100%|##########| 788/788 [00:00<00:00, 3.62MB/s]
-model.safetensors.index.json: 0.00B [00:00, ?B/s]model.safetensors.index.json: 19.9kB [00:00, 29.7MB/s]
-Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]
-text_encoder/model-00002-of-00002.safete(…):   0%|          | 0.00/9.06G [00:00<?, ?B/s][A
-
-text_encoder/model-00001-of-00002.safete(…):   0%|          | 0.00/9.99G [00:00<?, ?B/s][A[A
-text_encoder/model-00002-of-00002.safete(…):   0%|          | 866k/9.06G [00:01<3:47:42, 663kB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):   0%|          | 922k/9.99G [00:01<3:52:38, 716kB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):   1%|          | 68.0M/9.06G [00:01<02:22, 63.0MB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):   1%|          | 68.0M/9.99G [00:01<02:52, 57.6MB/s][A[A
-
-text_encoder/model-00001-of-00002.safete(…):   2%|2         | 202M/9.99G [00:01<00:50, 194MB/s]  [A[A
-
-text_encoder/model-00001-of-00002.safete(…):   3%|3         | 336M/9.99G [00:01<00:28, 336MB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):   1%|1         | 135M/9.06G [00:01<01:35, 93.3MB/s] [A
-
-text_encoder/model-00001-of-00002.safete(…):   5%|4         | 470M/9.99G [00:01<00:22, 425MB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):   7%|7         | 673M/9.06G [00:02<00:13, 637MB/s] [A
-text_encoder/model-00002-of-00002.safete(…):  10%|#         | 941M/9.06G [00:02<00:10, 811MB/s][A
-text_encoder/model-00002-of-00002.safete(…):  13%|#2        | 1.14G/9.06G [00:02<00:09, 842MB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):   6%|6         | 604M/9.99G [00:02<00:26, 352MB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  15%|#4        | 1.34G/9.06G [00:02<00:08, 888MB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  11%|#1        | 1.14G/9.99G [00:02<00:09, 920MB/s][A[A
-
-text_encoder/model-00001-of-00002.safete(…):  13%|#3        | 1.34G/9.99G [00:02<00:09, 959MB/s][A[A
-
-text_encoder/model-00001-of-00002.safete(…):  15%|#5        | 1.54G/9.99G [00:02<00:08, 1.04GB/s][A[A
-
-text_encoder/model-00001-of-00002.safete(…):  17%|#7        | 1.75G/9.99G [00:03<00:07, 1.04GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  17%|#7        | 1.54G/9.06G [00:03<00:12, 610MB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  19%|#8        | 1.88G/9.99G [00:03<00:08, 983MB/s] [A[A
-text_encoder/model-00002-of-00002.safete(…):  24%|##3       | 2.15G/9.06G [00:03<00:05, 1.15GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  20%|##        | 2.01G/9.99G [00:03<00:08, 916MB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  26%|##5       | 2.35G/9.06G [00:03<00:06, 1.08GB/s][A
-text_encoder/model-00002-of-00002.safete(…):  28%|##8       | 2.55G/9.06G [00:03<00:06, 1.02GB/s][A
-text_encoder/model-00002-of-00002.safete(…):  30%|###       | 2.75G/9.06G [00:04<00:06, 1.01GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  21%|##1       | 2.15G/9.99G [00:04<00:15, 503MB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  32%|###1      | 2.89G/9.06G [00:04<00:06, 1.03GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  28%|##8       | 2.82G/9.99G [00:04<00:05, 1.23GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  33%|###3      | 3.02G/9.06G [00:04<00:05, 1.06GB/s][A
-text_encoder/model-00002-of-00002.safete(…):  35%|###4      | 3.15G/9.06G [00:04<00:05, 1.00GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  31%|###       | 3.09G/9.99G [00:04<00:05, 1.15GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  36%|###6      | 3.29G/9.06G [00:04<00:05, 1.03GB/s][A
-text_encoder/model-00002-of-00002.safete(…):  38%|###7      | 3.42G/9.06G [00:04<00:05, 1.05GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  33%|###2      | 3.29G/9.99G [00:04<00:05, 1.15GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  39%|###9      | 3.56G/9.06G [00:04<00:06, 846MB/s] [A
-
-text_encoder/model-00001-of-00002.safete(…):  35%|###4      | 3.49G/9.99G [00:04<00:05, 1.10GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  41%|####1     | 3.76G/9.06G [00:05<00:05, 1.03GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  37%|###6      | 3.69G/9.99G [00:05<00:05, 1.07GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  43%|####2     | 3.89G/9.06G [00:05<00:04, 1.06GB/s][A
-text_encoder/model-00002-of-00002.safete(…):  44%|####4     | 4.03G/9.06G [00:05<00:04, 1.11GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  39%|###8      | 3.89G/9.99G [00:05<00:05, 1.08GB/s][A[A
-
-text_encoder/model-00001-of-00002.safete(…):  40%|####      | 4.03G/9.99G [00:05<00:05, 1.09GB/s][A[A
-
-text_encoder/model-00001-of-00002.safete(…):  42%|####1     | 4.16G/9.99G [00:05<00:05, 1.07GB/s][A[A
-
-text_encoder/model-00001-of-00002.safete(…):  43%|####2     | 4.29G/9.99G [00:05<00:05, 1.12GB/s][A[A
-
-text_encoder/model-00001-of-00002.safete(…):  44%|####4     | 4.43G/9.99G [00:05<00:05, 1.11GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  46%|####5     | 4.16G/9.06G [00:05<00:09, 531MB/s] [A
-
-text_encoder/model-00001-of-00002.safete(…):  46%|####5     | 4.56G/9.99G [00:05<00:04, 1.10GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  53%|#####2    | 4.76G/9.06G [00:06<00:03, 1.14GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  47%|####7     | 4.70G/9.99G [00:06<00:05, 1.02GB/s][A[A
-
-text_encoder/model-00001-of-00002.safete(…):  48%|####8     | 4.83G/9.99G [00:06<00:05, 1.03GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  55%|#####4    | 4.96G/9.06G [00:06<00:03, 1.14GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  50%|#####     | 5.03G/9.99G [00:06<00:04, 1.12GB/s][A[A
-
-text_encoder/model-00001-of-00002.safete(…):  52%|#####1    | 5.17G/9.99G [00:06<00:04, 1.11GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  57%|#####6    | 5.16G/9.06G [00:06<00:03, 986MB/s] [A
-
-text_encoder/model-00001-of-00002.safete(…):  53%|#####3    | 5.30G/9.99G [00:06<00:04, 1.05GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  58%|#####8    | 5.30G/9.06G [00:06<00:03, 1.01GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  54%|#####4    | 5.43G/9.99G [00:06<00:04, 1.11GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  60%|#####9    | 5.43G/9.06G [00:06<00:03, 1.06GB/s][A
-text_encoder/model-00002-of-00002.safete(…):  62%|######2   | 5.63G/9.06G [00:06<00:02, 1.15GB/s][A
-text_encoder/model-00002-of-00002.safete(…):  64%|######3   | 5.77G/9.06G [00:07<00:02, 1.11GB/s][A
-text_encoder/model-00002-of-00002.safete(…):  66%|######5   | 5.97G/9.06G [00:07<00:02, 1.16GB/s][A
-text_encoder/model-00002-of-00002.safete(…):  67%|######7   | 6.11G/9.06G [00:07<00:02, 1.19GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  56%|#####5    | 5.57G/9.99G [00:07<00:08, 501MB/s] [A[A
-text_encoder/model-00002-of-00002.safete(…):  69%|######8   | 6.24G/9.06G [00:07<00:02, 1.09GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  63%|######2   | 6.24G/9.99G [00:07<00:02, 1.28GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  70%|#######   | 6.38G/9.06G [00:07<00:02, 1.15GB/s][A
-text_encoder/model-00002-of-00002.safete(…):  72%|#######1  | 6.52G/9.06G [00:07<00:02, 1.13GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  65%|######5   | 6.51G/9.99G [00:07<00:02, 1.20GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  73%|#######3  | 6.65G/9.06G [00:07<00:02, 1.08GB/s][A
-text_encoder/model-00002-of-00002.safete(…):  75%|#######4  | 6.78G/9.06G [00:07<00:02, 1.11GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  67%|######7   | 6.71G/9.99G [00:07<00:03, 1.07GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  76%|#######6  | 6.92G/9.06G [00:08<00:01, 1.07GB/s][A
-text_encoder/model-00002-of-00002.safete(…):  79%|#######8  | 7.12G/9.06G [00:08<00:01, 1.22GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  69%|######9   | 6.92G/9.99G [00:08<00:02, 1.07GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  80%|########  | 7.25G/9.06G [00:08<00:01, 1.24GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  71%|#######1  | 7.11G/9.99G [00:08<00:02, 1.06GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  81%|########1 | 7.38G/9.06G [00:08<00:01, 1.17GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  73%|#######2  | 7.25G/9.99G [00:08<00:02, 1.04GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  83%|########2 | 7.52G/9.06G [00:08<00:01, 1.12GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  74%|#######3  | 7.38G/9.99G [00:08<00:02, 1.09GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  84%|########4 | 7.65G/9.06G [00:08<00:01, 1.07GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  76%|#######5  | 7.58G/9.99G [00:08<00:02, 1.20GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  86%|########5 | 7.79G/9.06G [00:08<00:01, 1.03GB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  78%|#######7  | 7.78G/9.99G [00:08<00:01, 1.27GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  87%|########7 | 7.92G/9.06G [00:08<00:01, 944MB/s] [A
-
-text_encoder/model-00001-of-00002.safete(…):  80%|#######9  | 7.98G/9.99G [00:09<00:01, 1.22GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  89%|########8 | 8.05G/9.06G [00:09<00:01, 902MB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  81%|########1 | 8.12G/9.99G [00:09<00:01, 1.23GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  90%|######### | 8.19G/9.06G [00:09<00:00, 920MB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  83%|########3 | 8.32G/9.99G [00:09<00:01, 1.20GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  92%|#########1| 8.32G/9.06G [00:09<00:00, 899MB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  85%|########4 | 8.45G/9.99G [00:09<00:01, 1.17GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  93%|#########3| 8.46G/9.06G [00:09<00:00, 967MB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  86%|########5 | 8.59G/9.99G [00:09<00:01, 1.14GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  95%|#########4| 8.59G/9.06G [00:09<00:00, 935MB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  87%|########7 | 8.72G/9.99G [00:09<00:01, 1.13GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  96%|#########6| 8.72G/9.06G [00:09<00:00, 965MB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  89%|########8 | 8.85G/9.99G [00:09<00:01, 1.08GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  98%|#########7| 8.86G/9.06G [00:09<00:00, 938MB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  90%|########9 | 8.99G/9.99G [00:09<00:00, 1.03GB/s][A[A
-text_encoder/model-00002-of-00002.safete(…):  99%|#########9| 8.99G/9.06G [00:10<00:00, 921MB/s][A
-
-text_encoder/model-00001-of-00002.safete(…):  91%|#########1| 9.12G/9.99G [00:10<00:00, 979MB/s] [A[Atext_encoder/model-00002-of-00002.safete(…): 100%|##########| 9.06G/9.06G [00:10<00:00, 886MB/s]
-
-
-text_encoder/model-00001-of-00002.safete(…):  93%|#########2| 9.26G/9.99G [00:10<00:00, 1.03GB/s][A[A
-
-text_encoder/model-00001-of-00002.safete(…):  94%|#########4| 9.39G/9.99G [00:10<00:00, 991MB/s] [A[A
-
-text_encoder/model-00001-of-00002.safete(…):  95%|#########5| 9.52G/9.99G [00:10<00:00, 959MB/s][A[A
-
-text_encoder/model-00001-of-00002.safete(…):  97%|#########6| 9.66G/9.99G [00:10<00:00, 1.01GB/s][A[A
-
-text_encoder/model-00001-of-00002.safete(…):  98%|#########8| 9.79G/9.99G [00:10<00:00, 975MB/s] [A[A
-
-text_encoder/model-00001-of-00002.safete(…):  99%|#########9| 9.93G/9.99G [00:10<00:00, 1.03GB/s][A[Atext_encoder/model-00001-of-00002.safete(…): 100%|##########| 9.99G/9.99G [00:10<00:00, 908MB/s] 
-Fetching 2 files:  50%|#####     | 1/2 [00:11<00:11, 11.43s/it]Fetching 2 files: 100%|##########| 2/2 [00:11<00:00,  5.71s/it]
-Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|##########| 2/2 [00:00<00:00, 49.39it/s]
-tokenizer_config.json: 0.00B [00:00, ?B/s]tokenizer_config.json: 20.5kB [00:00, 32.7MB/s]
-tokenizer/spiece.model:   0%|          | 0.00/792k [00:00<?, ?B/s]tokenizer/spiece.model: 100%|##########| 792k/792k [00:00<00:00, 2.64MB/s]tokenizer/spiece.model: 100%|##########| 792k/792k [00:00<00:00, 2.63MB/s]
-added_tokens.json: 0.00B [00:00, ?B/s]added_tokens.json: 2.63kB [00:00, 5.45MB/s]
-special_tokens_map.json: 0.00B [00:00, ?B/s]special_tokens_map.json: 2.20kB [00:00, 5.26MB/s]
-✅ Pipeline loaded!
-
-Timesteps: 20 steps [1.0000 → 0.1830]
-
-Prompt: 'A ball bouncing up a staircase, hitting each step sequentially.'
-prompt_embeds: torch.Size([1, 256, 4096])
-
-Latent shape: (1, 128, 2, 8, 12)
-
-  Unfreezing: proj_out.weight - torch.Size([128, 2048])
-  Unfreezing: proj_out.bias - torch.Size([128])
-
-✅ Total unfrozen parameters: 2
-   Unfrozen params count: 262,272
-
-/home/ubuntu/anaconda3/envs/ltx-grpo/lib/python3.10/site-packages/torch/functional.py:505: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at /pytorch/aten/src/ATen/native/TensorShape.cpp:4317.)
-  return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
-📊 Tracking 2 unfrozen parameters
-
-Step 01/20 | t=1.0000Traceback (most recent call last):
-  File "/lambda/nfs/angel-research/full_sequence_grpo/pipeline.py", line 229, in <module>
-    extra_step_kwargs={},
-TypeError: LTXVideoPipeline.denoising_step() got an unexpected keyword argument 'return_x0'

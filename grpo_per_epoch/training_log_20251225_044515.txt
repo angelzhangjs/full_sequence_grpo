@@ -1,6 +1,0 @@
-======================================================================
-LTX-VIDEO PER-EPOCH GRPO TRAINING
-Logging to: grpo_per_epoch/training_log_20251225_044515.txt
-======================================================================
-
-Loading LTX-Video pipeline...
