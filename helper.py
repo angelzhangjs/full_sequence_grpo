@@ -68,7 +68,7 @@ def decode_x0_to_video(
             x0_unpatchified,
             pipeline.vae,
             is_video=True,
-            vae_per_channel_normalize=False,  # Changed from True - may fix red/dark bias!
+            vae_per_channel_normalize=True,  # Changed from True - may fix red/dark bias!
             timestep=decode_timestep,
         )
         # Use pipeline's image_processor.postprocess() for consistent normalization

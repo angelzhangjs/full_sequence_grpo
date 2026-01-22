@@ -495,7 +495,6 @@ def run_grpo_for_prompt(
                 t=t,
                 extra_step_kwargs={},
                 stochastic_sampling=False,
-                return_x0=False,
             )
 
     rollout_dir = out_dir / "intermediate_rollout"
@@ -598,7 +597,15 @@ def run_grpo_for_prompt(
 
                 rollout_noise_preds.append(noise_pred.detach().clone())
 
-                _, x0_est = pipeline.denoising_step(
+                # `LTXVideoPipeline.denoising_step` in this repo does NOT support `return_x0`;
+                # compute x0 estimate explicitly and call denoising_step for next_latents only.
+                x0_est = _compute_x0_est_like_pipeline_denoising_step(
+                    latents=latents_perturbed,
+                    noise_pred=noise_pred,
+                    current_timestep=current_timestep,
+                    t=t,
+                )
+                _ = pipeline.denoising_step(
                     latents=latents_perturbed,
                     noise_pred=noise_pred,
                     current_timestep=current_timestep,
@@ -606,10 +613,16 @@ def run_grpo_for_prompt(
                     t=t,
                     extra_step_kwargs={},
                     stochastic_sampling=True,
-                    return_x0=True,
                 )
 
-                video_x0 = decode_x0_to_video(x0_est, pipeline, height=height, width=width, is_patchified=True)
+                video_x0 = decode_x0_to_video(
+                    x0_est,
+                    pipeline,
+                    num_frames=num_frames,
+                    height=height,
+                    width=width,
+                    is_patchified=True,
+                )
                 out_mp4 = rollout_dir / f"rollout_step{step_idx:03d}_r{r:02d}.mp4"
                 _save_video_to_mp4(video_x0, out_mp4, fps=frame_rate)
                 rollout_paths.append(str(out_mp4))
@@ -887,7 +900,14 @@ def run_grpo_for_prompt(
             current_timestep = current_timestep[:1]
             if (model.config.out_channels // 2) == model.config.in_channels:
                 noise_pred_u = noise_pred_u.chunk(2, dim=1)[0]
-            next_latents, x0_u = pipeline.denoising_step(
+            # Advance latents; compute x0 estimate explicitly (no return_x0 in this pipeline).
+            x0_u = _compute_x0_est_like_pipeline_denoising_step(
+                latents=latents,
+                noise_pred=noise_pred_u,
+                current_timestep=current_timestep,
+                t=t,
+            )
+            next_latents = pipeline.denoising_step(
                 latents=latents,
                 noise_pred=noise_pred_u,
                 current_timestep=current_timestep,
@@ -895,7 +915,6 @@ def run_grpo_for_prompt(
                 t=t,
                 extra_step_kwargs={},
                 stochastic_sampling=False,
-                return_x0=True,
             )
             last_updated_x0_cpu = x0_u.detach().float().cpu()
             latents = next_latents.detach().clone()
@@ -912,7 +931,14 @@ def run_grpo_for_prompt(
         final_dir = out_dir / "final_videos"
         final_dir.mkdir(parents=True, exist_ok=True)
         x0_cuda = last_updated_x0_cpu.to(device=device, dtype=torch.bfloat16)
-        final_video = decode_x0_to_video(x0_cuda, pipeline, height=height, width=width, is_patchified=True)
+        final_video = decode_x0_to_video(
+            x0_cuda,
+            pipeline,
+            num_frames=num_frames,
+            height=height,
+            width=width,
+            is_patchified=True,
+        )
         _save_video_to_mp4(final_video, final_dir / "final_video_updated_x0.mp4", fps=frame_rate)
 
     # End-of-run: report total weight change vs initial (match pipeline.py)
@@ -1185,6 +1211,7 @@ def main() -> None:
                 video = decode_x0_to_video(
                     x0_est,
                     pipeline,
+                    num_frames=args.num_frames,
                     height=height_padded,
                     width=width_padded,
                     is_patchified=True,
@@ -1210,7 +1237,6 @@ def main() -> None:
                 extra_step_kwargs,
                 t_eps=t_eps,
                 stochastic_sampling=stochastic_sampling,
-                return_x0=False,
             )
             if isinstance(out, tuple):
                 out = out[0]
@@ -1228,7 +1254,7 @@ def main() -> None:
                 # Save intermediates into per-prompt folder
                 (save_base / "intermediate_steps").mkdir(parents=True, exist_ok=True)
                 # Monkey-patch denoising_step only for the duration of this baseline run.
-                # (GRPO mode relies on the real denoising_step return type when return_x0=True.)
+                # (GRPO mode relies on the real denoising_step behavior; this repo's denoising_step does not return x0.)
                 _orig_step = pipeline.denoising_step
                 pipeline.denoising_step = make_hook(save_root=save_base)
 
@@ -1300,7 +1326,7 @@ def main() -> None:
                 _clear_gpu_cache(tag="baseline")
 
             def _run_grpo(save_base: Path) -> None:
-                # Ensure GRPO uses the original denoising_step implementation (needs return_x0=True).
+                # Ensure GRPO uses the original denoising_step implementation.
                 pipeline.denoising_step = orig_denoising_step
 
                 # Match pipeline.py: tee all GRPO prints into training_log_*.txt in the GRPO folder.
