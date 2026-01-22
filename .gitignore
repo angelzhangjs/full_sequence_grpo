@@ -235,3 +235,27 @@ scratch/
 #
 # Only code, configs, and documentation are tracked.
 # ============================================================================
+
+# ---- generated runs / videos ----
+grpo*/
+baseline*/
+baseline_and_grpo*/
+t2v*/
+ltx_video/outputs/
+**/intermediate_steps/
+**/intermediate_rollout/
+**/final_videos/
+*.mp4
+*.jpg
+*.png
+*.npy
+*.pt
+*.ckpt
+*.safetensors
+
+# ---- NFS temp files ----
+.nfs*
+
+# ---- caches ----
+**/__pycache__/
+*.pyc
