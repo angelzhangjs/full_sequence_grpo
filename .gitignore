@@ -235,3 +235,30 @@ scratch/
 #
 # Only code, configs, and documentation are tracked.
 # ============================================================================
+
+# ---- large artifacts / generated outputs ----
+grpo*/
+baseline*/
+baseline_and_grpo*/
+t2v*/
+ltx_video/outputs/
+
+# common big files
+*.mp4
+*.mov
+*.gif
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.npy
+*.npz
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# logs / caches
+**/__pycache__/
+*.pyc
+.nfs*
