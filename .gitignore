@@ -262,3 +262,34 @@ ltx_video/outputs/
 **/__pycache__/
 *.pyc
 .nfs*
+
+# ---- generated / large artifacts ----
+grpo*/
+baseline*/
+baseline_and_grpo*/
+t2v*/
+ltx_video/outputs/
+
+# videos / images / arrays / checkpoints
+*.mp4
+*.gif
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.npy
+*.npz
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+
+# logs / cache
+*.log
+wandb/
+runs/
+__pycache__/
+
+# NFS temp files
+.nfs*
