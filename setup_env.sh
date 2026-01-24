@@ -43,7 +43,7 @@ load_conda() {
   for prefix in "${candidates[@]}"; do
     if [ -f "${prefix}/etc/profile.d/conda.sh" ]; then
       echo ">>> Loading conda from: ${prefix}"
-      # shellcheck disable=SC1091
+  # shellcheck disable=SC1091
       source "${prefix}/etc/profile.d/conda.sh"
       break
     fi

@@ -279,6 +279,7 @@ def run_grpo_for_prompt(
     attn1_blocks: List[int],
     attn2_blocks: List[int],
     rollout_noise_scale: float,
+    rollout_noise_preds_cpu: bool,
     normalize_advantages: bool,
     use_grpo_kl: bool,
     kl_beta: float,
@@ -508,6 +509,7 @@ def run_grpo_for_prompt(
         rollout_noise_preds: List[torch.Tensor] = []
         rollout_rewards: List[torch.Tensor] = []
         rollout_paths: List[str] = []
+        rollout_seeds: List[int] = []
 
         for r in range(int(num_rollouts)):
             with torch.no_grad():
@@ -515,6 +517,9 @@ def run_grpo_for_prompt(
                 torch.manual_seed(rollout_seed)
                 if torch.cuda.is_available():
                     torch.cuda.manual_seed_all(rollout_seed)
+                rollout_seeds.append(int(rollout_seed))
+                # TeeLogger captures stdout/stderr into training_log_*.txt for reproducibility.
+                print(f"\n[GRPO][step={step_idx:03d} r={r:02d}] rollout_seed={rollout_seed}")
 
                 latents_perturbed = latents
                 if r > 0 and float(rollout_noise_scale) > 0.0:
@@ -595,7 +600,13 @@ def run_grpo_for_prompt(
                 if (model.config.out_channels // 2) == model.config.in_channels:
                     noise_pred = noise_pred.chunk(2, dim=1)[0]
 
-                rollout_noise_preds.append(noise_pred.detach().clone())
+                # Store rollout noise preds for PG loss.
+                # If num_rollouts is large, keeping these on GPU scales VRAM ~O(num_rollouts).
+                # Optionally store on CPU to keep peak VRAM almost constant.
+                if rollout_noise_preds_cpu:
+                    rollout_noise_preds.append(noise_pred.detach().to("cpu"))
+                else:
+                    rollout_noise_preds.append(noise_pred.detach().clone())
 
                 # `LTXVideoPipeline.denoising_step` in this repo does NOT support `return_x0`;
                 # compute x0 estimate explicitly and call denoising_step for next_latents only.
@@ -649,8 +660,11 @@ def run_grpo_for_prompt(
             f.write(f"mean_reward={float(mean_r):.6f}\n")
             f.write(f"std_reward={float(std_r):.6f}\n")
             for r in range(int(num_rollouts)):
+                seed_str = "NA"
+                if r < len(rollout_seeds):
+                    seed_str = str(int(rollout_seeds[r]))
                 f.write(
-                    f"r={r} reward={float(rewards[r]):.6f} advantage={float(adv[r]):.6f} mp4={rollout_paths[r]}\n"
+                    f"r={r} seed={seed_str} reward={float(rewards[r]):.6f} advantage={float(adv[r]):.6f} mp4={rollout_paths[r]}\n"
                 )
 
         # Step 3: policy gradient update
@@ -725,7 +739,10 @@ def run_grpo_for_prompt(
 
         log_probs = []
         for r in range(int(num_rollouts)):
-            mse = ((rollout_noise_preds[r].detach() - noise_pred_current) ** 2).mean()
+            ref = rollout_noise_preds[r]
+            if ref.device != noise_pred_current.device:
+                ref = ref.to(device=noise_pred_current.device)
+            mse = ((ref.detach() - noise_pred_current) ** 2).mean()
             log_probs.append(-mse)
         log_probs_t = torch.stack(log_probs)
         pg_loss = -(log_probs_t * adv).mean()
@@ -987,7 +1004,6 @@ def main() -> None:
     ap.add_argument(
         "--no_timestamp",
         action="store_true",
-        help="Do not expand/append timestamps to --output_dir (use the path exactly as provided).",
     )
     ap.add_argument("--save_every", type=int, default=1, help="Save every N denoising steps (1=all).")
     ap.add_argument("--stochastic_sampling", action="store_true", help="Enable stochastic sampling in pipeline.")
@@ -995,6 +1011,14 @@ def main() -> None:
     ap.add_argument("--num_inference_steps", type=int, default=40)
     ap.add_argument("--num_grpo_steps", type=int, default=25)
     ap.add_argument("--num_rollouts", type=int, default=3)
+    ap.add_argument(
+        "--rollout_noise_preds_cpu",
+        action="store_true",
+        help=(
+            "Store per-rollout noise predictions on CPU during each GRPO step to reduce VRAM. "
+            "Useful for large --num_rollouts (e.g., 16–32)."
+        ),
+    )
     ap.add_argument("--lr", type=float, default=1e-4)
     ap.add_argument("--attn1_blocks", type=str, default="11,12,13,14")
     ap.add_argument("--attn2_blocks", type=str, default="27")
@@ -1007,15 +1031,6 @@ def main() -> None:
         type=str,
         default="worst quality, inconsistent motion, blurry, jittery, distorted",
         help="Negative prompt (baseline default). Use '' to disable.",
-    )
-    ap.add_argument(
-        "--match-grpo-conditioning",
-        action="store_true",
-        help=(
-            "Make the baseline pipeline(...) call use the same conditioning style as the GRPO loop: "
-            "guidance_scale=1, stg_scale=0, rescaling_scale=1, negative_prompt=''. "
-            "This helps baseline intermediate videos look closer to GRPO rollouts."
-        ),
     )
     args = ap.parse_args()
 
@@ -1264,25 +1279,12 @@ def main() -> None:
                 sample = {
                     "prompt": prompt,
                     "prompt_attention_mask": None,
-                    "negative_prompt": "" if args.match_grpo_conditioning else args.negative_prompt,
+                    "negative_prompt": args.negative_prompt,
                     "negative_prompt_attention_mask": None,
                 }
 
                 try:
                     cfg_call = dict(cfg_for_call)
-                    extra_conditioning_kwargs: Dict[str, Any] = {}
-                    if args.match_grpo_conditioning:
-                        # Match GRPO conditioning style: no CFG/STG/rescaling, no negative prompt.
-                        # Ensure we don't pass duplicates from YAML.
-                        for k in ("guidance_scale", "stg_scale", "rescaling_scale"):
-                            cfg_call.pop(k, None)
-                        extra_conditioning_kwargs.update(
-                            {
-                                "guidance_scale": 1.0,
-                                "stg_scale": 0.0,
-                                "rescaling_scale": 1.0,
-                            }
-                        )
                     result = pipeline(
                         **cfg_call,
                         skip_layer_strategy=skip_layer_strategy,
@@ -1294,7 +1296,6 @@ def main() -> None:
                         num_frames=num_frames_padded,
                         frame_rate=args.frame_rate,
                         **sample,
-                        **extra_conditioning_kwargs,
                         media_items=None,
                         conditioning_items=None,
                         is_video=True,
@@ -1362,6 +1363,7 @@ def main() -> None:
                         attn1_blocks=_parse_int_list(args.attn1_blocks),
                         attn2_blocks=_parse_int_list(args.attn2_blocks),
                         rollout_noise_scale=args.rollout_noise_scale,
+                        rollout_noise_preds_cpu=bool(args.rollout_noise_preds_cpu),
                         normalize_advantages=bool(args.normalize_advantages),
                         use_grpo_kl=bool(args.use_grpo_kl),
                         kl_beta=float(args.kl_beta),

@@ -93,8 +93,9 @@ def main() -> int:
     ap.add_argument("--num-grpo-steps", type=int, default=25)
     ap.add_argument("--num-rollouts", type=int, default=3)
     ap.add_argument("--lr", type=float, default=1e-4)
-    ap.add_argument("--attn1-blocks", default="11,12,13,14")
-    ap.add_argument("--attn2-blocks", default="27")
+    # Accept both dashed and underscored variants for compatibility with older scripts.
+    ap.add_argument("--attn1-blocks", "--attn1_blocks", dest="attn1_blocks", default="11,12,13,14")
+    ap.add_argument("--attn2-blocks", "--attn2_blocks", dest="attn2_blocks", default="27")
     ap.add_argument("--rollout-noise-scale", type=float, default=0.5)
     ap.add_argument("--normalize-advantages", type=int, default=1)
     ap.add_argument("--use-grpo-kl", type=int, default=0)
