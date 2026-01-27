@@ -10,3 +10,6 @@
 [submodule "GeometryForcing"]
 	path = GeometryForcing
 	url = https://github.com/CIntellifusion/GeometryForcing
+[submodule "external/cosmos-predict2.5"]
+	path = external/cosmos-predict2.5
+	url = https://github.com/nvidia-cosmos/cosmos-predict2.5.git
