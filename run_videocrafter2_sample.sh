@@ -37,5 +37,10 @@ PYTHONUNBUFFERED=1 /home/ubuntu/anaconda3/bin/conda run -n scaling-noise python 
   --fifo_train_last_partitions 2
 
 echo "Saved baseline to: $OUT_DIR/before.mp4"
-echo "Saved GRPO result to: $OUT_DIR/after.mp4"
+if [[ -f "$OUT_DIR/after.mp4" ]]; then
+  echo "Saved GRPO result to: $OUT_DIR/after.mp4"
+else
+  echo "NOTE: after.mp4 not found at: $OUT_DIR/after.mp4"
+  echo "  Check $OUT_DIR/intermediate_rollout/logs/ for why GRPO may have skipped/failed."
+fi
 

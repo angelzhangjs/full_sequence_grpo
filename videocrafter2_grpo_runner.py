@@ -155,14 +155,30 @@ def _select_trainable_params(model, mode: str) -> List[torch.nn.Parameter]:
     if mode == "none":
         return trainable
 
-    for name, p in model.named_parameters():
-        if mode == "all":
+    if mode == "all":
+        for _, p in model.named_parameters():
             p.requires_grad = True
             trainable.append(p)
-        elif mode == "temporal":
-            if "temporal" in name.lower():
+        return trainable
+
+    if mode == "temporal":
+        # VideoCrafter2 temporal modules are often instances of classes like:
+        #   TemporalTransformer, TemporalConvBlock
+        # BUT parameter names may *not* include "temporal" (e.g. misspelled "temopral_conv"),
+        # so we select by module class name instead of string-matching parameter names.
+        seen = set()
+        for _, m in model.named_modules():
+            cls = m.__class__.__name__.lower()
+            if "temporal" not in cls:
+                continue
+            for p in m.parameters(recurse=True):
+                pid = id(p)
+                if pid in seen:
+                    continue
+                seen.add(pid)
                 p.requires_grad = True
                 trainable.append(p)
+        return trainable
 
     if mode != "none" and len(trainable) == 0:
         print("⚠️ Warning: no parameters matched trainable selection; nothing will be updated.")
@@ -634,10 +650,11 @@ def run_grpo_for_prompt(
     # ------------------------------------------------------------------
     params = _select_trainable_params(model, trainable)
     if len(params) == 0:
-        print("Nothing to train; exiting after baseline.")
-        return
+        print("Nothing to train; will still save `after.mp4` (no GRPO updates applied).", flush=True)
+        # Fall through to the after-sampling block at the end.
+        params = []
 
-    opt = torch.optim.AdamW(params, lr=float(lr))
+    opt = torch.optim.AdamW(params, lr=float(lr)) if len(params) > 0 else None
 
     if mode_sampling == "fifo":
         # -----------------------
@@ -773,6 +790,7 @@ def run_grpo_for_prompt(
                                 )
 
                     # Policy update (proxy logprob via -MSE on e_t window)
+                    assert opt is not None
                     opt.zero_grad(set_to_none=True)
                     logps: List[torch.Tensor] = []
                     for r in range(int(num_rollouts)):
@@ -935,6 +953,7 @@ def run_grpo_for_prompt(
             # -----------------------
             # Policy gradient update (proxy logprob via -MSE)
             # -----------------------
+            assert opt is not None
             opt.zero_grad(set_to_none=True)
 
             logps: List[torch.Tensor] = []
