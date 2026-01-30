@@ -88,6 +88,11 @@ def main() -> int:
     ap.add_argument("--width", type=int, default=768)
     ap.add_argument("--num-frames", type=int, default=81)
     ap.add_argument("--frame-rate", type=int, default=16)
+    ap.add_argument(
+        "--negative_prompt",
+        default="",
+        help="Negative prompt string (passed through to baseline_intermediate_videos.py).",
+    )
     # GRPO options (used when --mode is grpo_train or both)
     ap.add_argument("--num-inference-steps", type=int, default=40)
     ap.add_argument("--num-grpo-steps", type=int, default=25)
@@ -152,6 +157,8 @@ def main() -> int:
             args.mode,
             "--prompt",
             prompt,
+            "--negative_prompt",
+            args.negative_prompt,
             "--pipeline_config",
             args.pipeline_config,
             "--height",

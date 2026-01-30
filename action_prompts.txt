@@ -1,0 +1,50 @@
+A leaf floats down in a loose spiral instead of a straight line. 
+A red plastic bag floats in uneven air currents, sometimes rising and sometimes dropping. 
+A yellow dust floats in a sunbeam, changing direction slowly over time. 
+A red balloon slowly floats upward, drifting a little left and right instead of going straight up. 
+A cube floating on water, showing delayed response to waves, with motion lagging slightly behind the water movement. 
+A small box floating in calm water, remaining nearly still until a gentle wave causes gradual vertical motion. 
+An ice cube floating on water, moving forward at the same speed as the surface current rather than sliding independently. 
+A plastic bottle floating in water, rocking back and forth as waves hit it from one side.
+A piece of wood floating on water, drifting slowly while maintaining contact with the surface. 
+A rubber ball floating in a pool, bobbing slightly as ripples spread across the surface.
+A solid cube rolls across a flat surface, rotating steadily while moving forward at a constant speed. 
+A ball rolls down a gentle slope, gradually speeding up as gravity pulls it forward. 
+A wooden cylinder rolls on the ground, slowing down over time due to friction. 
+A ball rolls across uneven ground, changing speed slightly as it passes small bumps. 
+A metal sphere rolls on a table, rotating without slipping. 
+A box rolls after being pushed, then gradually comes to a stop. 
+A ball rolls down a ramp, accelerating smoothly without bouncing. 
+A basketball rolling across a smooth wooden floor, with the ball moving in a straight line with realistic rotation. 
+A basketball rolling down a gentle ramp, accelerating smoothly while rotating faster as it moves. 
+A basketball rolling down a set of stairs, rotating consistently while bouncing slightly on each step. 
+A red ball drops vertically from above and falls straight down onto the wooden surface. The motion is quick and direct, with light motion blur showing its fall against the clean wooden background. 
+A blue cube drops vertically from above and falls straight down onto the concrete floor. The motion is fast and smooth, with slight motion blur showing its fall. 
+A yellow ball drops from a table and lands on a smooth surface. Motion is quick and direct, showing realistic free-fall physics. 
+A rock drops from a height onto a dirt surface. The motion is direct, with speed increasing naturally as it falls. 
+A cube drops from above and hits the floor, moving straight down with continuous acceleration and a clean vertical path. 
+A yellow ball drops from a shelf and falls straight down onto a tiled surface, motion is fast and smooth with a soft motion blur trailing its path. 
+A wooden cube drops from a height and lands on a wooden floor, motion is direct, accelerating under gravity with realistic impact. 
+A small ball drops from a ledge and falls straight down onto a soft carpet. Motion is fast and vertical, with slight bounce on contact.
+A metal sphere drops from a small height and falls straight down onto a flat table. The motion accelerates naturally under gravity, with a subtle blur.
+A red ball falls from a ledge and hits the wooden floor. Its motion is direct and quick, showing realistic acceleration.
+A rubber ball compresses when pressed, then slowly returns to its original shape.
+A soft cube compresses when pushed, resisting the force gradually.
+A soft ball compresses on contact, then expands back.
+A soft block compresses and holds its shape while force is applied. 
+A rubber ball falls, hits the ground, compresses, then bounces upward.
+A rubber ball compresses and rebounds quickly.
+A bouncing object shows no upward motion before impact.
+A rubber ball being compressed under a flat press, filmed with a stationary camera. Bright, shadow-free lighting and clean background emphasize the deformation as it flatten. 
+A rubber block being squeezed under a metal press, filmed with a static camera. Uniform lighting emphasizes deformation along the vertical axis.
+A soft cube being pressed slowly by a flat plate, captured from a side view. 
+A single coin spins quickly on a polished glass surface, close-up fixed camera, bright even lighting, plain backdrop, capture its precession and slow wobble as it settles.
+A coin spinning on a metal surface, close-up fixed camera, even lighting, plain background, capturing the tilt, wobble, and eventual stop.
+A poker chip spins on a polished wooden floor, stationary camera, bright lighting, plain background, capturing the subtle precession and gradual energy loss.
+A metal coin spins on a flat tile surface, stationary camera, bright lighting, clean background, capturing its wobble and slowing rotation until it stops.
+A group of butterflies rises from a flower patch, fluttering in curved paths as they weave around nearby trees.
+A cluster of balloons rises into the sky, drifting sideways as pigeons fly underneath in scattered formations.
+A blue balloon drifts upward behind a fence, while a flock of sparrows rises from the garden below in random directions.
+A group of pigeons spirals around a tall clock tower, rising and falling in arcs as people move through the square.
+A red balloon drifts through the air, twisting gently as small birds scatter from nearby bushes.
+A small group of birds swoops in a coordinated arc above a fountain, then fans out as they fly past a tree line.
