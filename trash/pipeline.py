@@ -16,7 +16,12 @@ from pathlib import Path
 from datetime import datetime
 import imageio
 from helper import decode_x0_to_video
-from reward_functions import reward_function, clear_model_cache
+from reward_functions import (
+    clear_model_cache,
+    comprehensive_grpo_reward,
+    AdaptiveRewardConfig,
+    AdaptiveRewardMixer,
+)
 from gemini_rewards import score_video_with_gemini
 
 # ============================================================================
@@ -199,6 +204,27 @@ print("✅ Pipeline loaded!\n")
 model = pipeline.transformer
 scheduler = pipeline.scheduler
 vae = pipeline.vae
+
+# ============================================================================
+# Adaptive reward (online reweighting of components during GRPO)
+# ============================================================================
+# This keeps the reward "curriculum-like": it automatically emphasizes whichever
+# component is currently underperforming relative to its target.
+adaptive_reward = AdaptiveRewardMixer(
+    AdaptiveRewardConfig(
+        # start from your current static reward mix:
+        w_text_alignment=0.6,
+        w_object_tracking=0.4,
+        # reasonable defaults; tweak if you want faster/slower adaptation:
+        ema_beta=0.95,
+        weight_lr=0.2,
+        target_text_alignment=0.75,
+        target_object_tracking=0.75,
+        gap_temperature=6.0,
+        min_weight=0.1,
+        max_weight=0.9,
+    )
+)
 
 # Toggle Gemini-based ranking for rollouts (one-hot or normalized advantages)
 USE_GEMINI_RANKING = True
@@ -486,6 +512,7 @@ for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last N timesteps
     rollout_rewards = []      # Handcrafted rewards
     rollout_video_paths = []  # Saved MP4s for Gemini ranking
     rollout_records = []      # For per-rollout logging
+    rollout_components = []   # For adaptive reward updates (per rollout)
         
     for rollout_index in range(num_rollouts):
         #####==========================================================
@@ -551,8 +578,10 @@ for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last N timesteps
             np.save(rollout_x0_path, x0_est.detach().float().cpu().numpy())
             # Handcrafted reward
             video_for_reward = video_x0.float() if video_x0.dtype == torch.bfloat16 else video_x0
-            reward = reward_function(video_for_reward, prompt=prompt)
+            comps = comprehensive_grpo_reward(video=video_for_reward, prompt=prompt, device="cuda", use_clip=True, use_dino=True)
+            reward = adaptive_reward.scalar_from_components(comps, device=latents.device)
             rollout_rewards.append(reward)
+            rollout_components.append(comps)
             rollout_records.append(
                 {
                     "timestep_index": i,
@@ -560,6 +589,10 @@ for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last N timesteps
                     "video_path": str(rollout_path),
                     "x0_path": str(rollout_x0_path),
                     "reward": reward.item() if hasattr(reward, "item") else float(reward),
+                    "text_alignment": float(comps.get("text_alignment", 0.5)),
+                    "object_tracking": float(comps.get("object_tracking", 0.5)),
+                    "centering": float(comps.get("centering", 0.5)),
+                    "motion_gate": float(comps.get("motion_gate", 0.0)),
                 }
             )
             
@@ -631,6 +664,20 @@ for i, t in enumerate(timesteps_for_grpo):  # Only iterate over last N timesteps
                 )
     # Clear rollout data to free memory before backward pass
     torch.cuda.empty_cache()
+
+    # -----------------------------------------------------------------------
+    # Adaptive reward update: update weights once per GRPO timestep using the
+    # rollout component scores we just observed.
+    # (Even if you use Gemini advantages, we still adapt from handcrafted comps.)
+    # -----------------------------------------------------------------------
+    adaptive_reward.update_from_rollouts(rollout_components)
+    ars = adaptive_reward.debug_state()
+    print(
+        f"\n[AdaptiveReward] step={int(ars['steps'])} "
+        f"w_text={ars['w_text_alignment']:.3f} w_obj={ars['w_object_tracking']:.3f} | "
+        f"ema_text={ars['ema_text_alignment']:.3f} ema_obj={ars['ema_object_tracking']:.3f}",
+        end="",
+    )
     
     #=======================================================================
     # STEP 3: Compute GRPO loss with proper policy gradient

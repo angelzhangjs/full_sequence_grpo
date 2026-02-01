@@ -242,6 +242,7 @@ baseline*/
 baseline_and_grpo*/
 t2v*/
 ltx_video/outputs/
+scalingnoise_outputs/
 
 # common big files
 *.mp4

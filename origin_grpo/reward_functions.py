@@ -658,6 +658,139 @@ def reward_function(
     return torch.tensor(result['reward'], device=device)
 
 
+# =============================================================================
+# Adaptive reward mixing (for GRPO)
+# =============================================================================
+
+from dataclasses import dataclass
+
+
+@dataclass
+class AdaptiveRewardConfig:
+    """
+    Online reweighting of reward components using EMA of rollout performance.
+
+    Intuition:
+    - Track recent mean score for each component (EMA).
+    - Increase weight on components that are below their target competence.
+    - Smooth weight updates to avoid thrashing.
+    """
+
+    # Start weights (will be normalized)
+    w_text_alignment: float = 0.6
+    w_object_tracking: float = 0.4
+
+    # EMA smoothing for component means
+    ema_beta: float = 0.95
+
+    # How fast to move weights toward the proposed new weights (0..1)
+    weight_lr: float = 0.2
+
+    # Targets in [0,1]. Higher means "we want this component to get good".
+    target_text_alignment: float = 0.75
+    target_object_tracking: float = 0.75
+
+    # Softmax temperature for turning gaps into weights (higher => more aggressive)
+    gap_temperature: float = 6.0
+
+    # Clamp to keep both signals active
+    min_weight: float = 0.1
+    max_weight: float = 0.9
+
+
+class AdaptiveRewardMixer:
+    """
+    Computes component rewards using `comprehensive_grpo_reward` and mixes them into
+    a scalar reward with weights updated online from recent rollouts.
+    """
+
+    def __init__(self, config: AdaptiveRewardConfig | None = None):
+        self.cfg = config or AdaptiveRewardConfig()
+
+        w_text = float(self.cfg.w_text_alignment)
+        w_obj = float(self.cfg.w_object_tracking)
+        s = max(w_text + w_obj, 1e-8)
+        self.w_text = w_text / s
+        self.w_obj = w_obj / s
+
+        # EMA of component means (initialized to neutral)
+        self.ema_text = 0.5
+        self.ema_obj = 0.5
+
+        # Step counter for logging/debugging
+        self.steps = 0
+
+    @torch.no_grad()
+    def score_components(self, *, video: torch.Tensor, prompt: str, device: str = "cuda") -> Dict[str, float]:
+        return comprehensive_grpo_reward(video=video, prompt=prompt, device=device, use_clip=True, use_dino=True)
+
+    def scalar_from_components(self, components: Dict[str, float], *, device: str = "cuda") -> torch.Tensor:
+        text = float(components.get("text_alignment", 0.5))
+        obj = float(components.get("object_tracking", 0.5))
+        r = self.w_text * text + self.w_obj * obj
+        return torch.tensor(float(np.clip(r, 0.0, 1.0)), device=device)
+
+    def update_from_rollouts(self, rollout_components: list[Dict[str, float]]) -> None:
+        """
+        Update EMA stats and then update weights.
+
+        Call once per GRPO timestep (i.e., after you collect K rollouts).
+        """
+        if not rollout_components:
+            return
+
+        # Mean over rollouts for this timestep
+        text_vals = [float(rc.get("text_alignment", 0.5)) for rc in rollout_components]
+        obj_vals = [float(rc.get("object_tracking", 0.5)) for rc in rollout_components]
+        mean_text = float(np.mean(text_vals))
+        mean_obj = float(np.mean(obj_vals))
+
+        b = float(self.cfg.ema_beta)
+        self.ema_text = b * self.ema_text + (1.0 - b) * mean_text
+        self.ema_obj = b * self.ema_obj + (1.0 - b) * mean_obj
+
+        # "Competence gap" relative to targets; higher gap => higher weight.
+        gap_text = float(self.cfg.target_text_alignment) - self.ema_text
+        gap_obj = float(self.cfg.target_object_tracking) - self.ema_obj
+
+        # Softmax over gaps (stabilize by subtracting max).
+        temp = float(self.cfg.gap_temperature)
+        g = np.array([gap_text * temp, gap_obj * temp], dtype=np.float32)
+        g = g - float(np.max(g))
+        p = np.exp(g)
+        p = p / max(float(np.sum(p)), 1e-8)
+        w_text_new = float(p[0])
+        w_obj_new = float(p[1])
+
+        # Clamp weights so both terms keep contributing.
+        w_text_new = float(np.clip(w_text_new, self.cfg.min_weight, self.cfg.max_weight))
+        w_obj_new = float(np.clip(w_obj_new, self.cfg.min_weight, self.cfg.max_weight))
+        s = max(w_text_new + w_obj_new, 1e-8)
+        w_text_new /= s
+        w_obj_new /= s
+
+        # Smooth update.
+        lr = float(self.cfg.weight_lr)
+        self.w_text = (1.0 - lr) * self.w_text + lr * w_text_new
+        self.w_obj = (1.0 - lr) * self.w_obj + lr * w_obj_new
+
+        # Re-normalize in case of numeric drift.
+        s2 = max(self.w_text + self.w_obj, 1e-8)
+        self.w_text /= s2
+        self.w_obj /= s2
+
+        self.steps += 1
+
+    def debug_state(self) -> Dict[str, float]:
+        return {
+            "steps": float(self.steps),
+            "w_text_alignment": float(self.w_text),
+            "w_object_tracking": float(self.w_obj),
+            "ema_text_alignment": float(self.ema_text),
+            "ema_object_tracking": float(self.ema_obj),
+        }
+
+
 if __name__ == "__main__":
     print("Comprehensive Reward Functions Module")
     print("\nAvailable functions:")
