@@ -22,3 +22,6 @@
 [submodule "CogVideo"]
 	path = CogVideo
 	url = https://github.com/zai-org/CogVideo.git
+[submodule "HunyuanVideo"]
+	path = HunyuanVideo
+	url = https://github.com/Tencent-Hunyuan/HunyuanVideo.git
