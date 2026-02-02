@@ -19,3 +19,6 @@
 [submodule "Open-Sora"]
 	path = Open-Sora
 	url = https://github.com/hpcaitech/Open-Sora
+[submodule "CogVideo"]
+	path = CogVideo
+	url = https://github.com/zai-org/CogVideo.git
