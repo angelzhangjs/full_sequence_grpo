@@ -27,8 +27,6 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 from torchvision.transforms.functional import resize
 from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normalize, ToPILImage
-from omegaconf import OmegaConf
-
 from transformers import AutoModel, AutoProcessor
 from transformers.image_utils import load_image
 

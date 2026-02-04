@@ -95,6 +95,7 @@ class LTXAdapter(VideoGRPOAdapter):
         with_grad: bool,
         rollout_noise_scale: float,
         rollout_index: int,
+        solver_state=None,
     ) -> StepOutput:
         model = self.pipeline.transformer
         t = ctx.t
@@ -136,7 +137,7 @@ class LTXAdapter(VideoGRPOAdapter):
                     return_x0=True,
                 )
                 next_latents, x0_est = out
-                return StepOutput(next_latents=next_latents, action=noise_pred, x0_latents=x0_est)
+                return StepOutput(next_latents=next_latents, action=noise_pred, x0_latents=x0_est, solver_state=solver_state)
             except TypeError:
                 # If return_x0 isn't supported in this version, fall back to no-x0
                 pass
@@ -151,7 +152,7 @@ class LTXAdapter(VideoGRPOAdapter):
                 stochastic_sampling=bool(int(rollout_index) > 0),
                 return_x0=False,
             )
-            return StepOutput(next_latents=next_latents, action=noise_pred, x0_latents=None)
+            return StepOutput(next_latents=next_latents, action=noise_pred, x0_latents=None, solver_state=solver_state)
 
         raise RuntimeError("LTXAdapter requires pipeline.denoising_step to be available.")
 

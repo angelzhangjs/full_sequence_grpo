@@ -1034,12 +1034,22 @@ def main() -> None:
     )
     args = ap.parse_args()
 
+    # Resolve repo root to make relative paths (like configs/*.yaml) robust to cwd.
+    repo_root = Path(__file__).resolve().parents[1]
+
     prompts: list[str] = []
     if args.prompt_file:
         p = Path(args.prompt_file)
         if not p.exists():
             raise FileNotFoundError(f"--prompt_file not found: {p}")
-        prompts = [ln.strip() for ln in p.read_text().splitlines() if ln.strip()]
+        prompts = []
+        for ln in p.read_text(encoding="utf-8").splitlines():
+            t = ln.strip()
+            if not t:
+                continue
+            if t.startswith("#"):
+                continue
+            prompts.append(t)
     if args.prompt:
         prompts = [args.prompt] if not prompts else prompts
     if not prompts:
@@ -1061,6 +1071,8 @@ def main() -> None:
     # Load YAML + resolve checkpoint (local path, CKPT_PATH override, or HF download)
     # ---------------------------------------------------------------------
     config_path = args.pipeline_config
+    if not os.path.isabs(config_path):
+        config_path = str((repo_root / config_path).resolve())
     cfg = load_pipeline_config(config_path)
     ckpt_name = cfg["checkpoint_path"]
 

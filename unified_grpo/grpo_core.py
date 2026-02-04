@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import torch
 
@@ -63,6 +63,7 @@ def run_grpo_for_prompt(
     opt = torch.optim.AdamW(params, lr=float(cfg.lr), betas=(0.9, 0.999), weight_decay=0.01)
 
     latents = adapter.prepare_latents(seed=int(seed)).to(device)
+    solver_state: Optional[Any] = None
 
     last_loss = 0.0
     last_mean_r = 0.0
@@ -80,8 +81,10 @@ def run_grpo_for_prompt(
                     with_grad=False,
                     rollout_noise_scale=0.0,
                     rollout_index=0,
+                    solver_state=solver_state,
                 )
             latents = out.next_latents.detach()
+            solver_state = out.solver_state
             continue
 
         # ---------------------------
@@ -89,6 +92,7 @@ def run_grpo_for_prompt(
         # ---------------------------
         rollout_actions: List[torch.Tensor] = []
         rollout_next_latents: List[torch.Tensor] = []
+        rollout_solver_states: List[Optional[Any]] = []
         rollout_rewards: List[torch.Tensor] = []
 
         with torch.no_grad():
@@ -99,6 +103,7 @@ def run_grpo_for_prompt(
                     with_grad=False,
                     rollout_noise_scale=float(cfg.rollout_noise_scale),
                     rollout_index=int(r),
+                    solver_state=solver_state,
                 )
 
                 # Prefer x0_latents if provided; otherwise reward on next_latents decode.
@@ -108,6 +113,7 @@ def run_grpo_for_prompt(
 
                 rollout_actions.append(out_r.action.detach())
                 rollout_next_latents.append(out_r.next_latents.detach())
+                rollout_solver_states.append(out_r.solver_state)
                 rollout_rewards.append(rew.detach().float().to(device))
 
         rewards_t = torch.stack(rollout_rewards)  # [K]
@@ -127,6 +133,7 @@ def run_grpo_for_prompt(
             with_grad=True,
             rollout_noise_scale=0.0,
             rollout_index=0,
+            solver_state=solver_state,
         )
         action_cur = out_cur.action
 
@@ -151,6 +158,14 @@ def run_grpo_for_prompt(
         # ---------------------------
         best = int(torch.argmax(rewards_t).item())
         latents = rollout_next_latents[best].detach()
+        solver_state = rollout_solver_states[best]
+
+    # Optionally dump the final decoded video for debugging / eval.
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        with torch.no_grad():
+            final_video = adapter.decode_for_reward(latents_or_x0=latents, x0_is_patchified=True).detach().cpu()
+        torch.save(final_video, out_dir / "final_video.pt")
 
     return {
         "last_loss": float(last_loss),

@@ -96,6 +96,7 @@ class Hunyuan15Adapter(VideoGRPOAdapter):
         with_grad: bool,
         rollout_noise_scale: float,
         rollout_index: int,
+        solver_state=None,
     ) -> StepOutput:
         t = ctx.t
 
@@ -123,7 +124,7 @@ class Hunyuan15Adapter(VideoGRPOAdapter):
         next_latents = self.pipe.scheduler.step(
             noise_pred, t, lat_in, **self.extra_step_kwargs, return_dict=False
         )[0]
-        return StepOutput(next_latents=next_latents, action=noise_pred, x0_latents=None)
+        return StepOutput(next_latents=next_latents, action=noise_pred, x0_latents=None, solver_state=solver_state)
 
     def decode_for_reward(self, *, latents_or_x0: torch.Tensor, x0_is_patchified: bool) -> torch.Tensor:
         # Hunyuan VAE decode expects scaled latents; mimic their __call__ decode path.

@@ -1,0 +1,83 @@
+# Ballistics / projectile motion (10 prompts)
+A bright red ball is thrown left-to-right in a smooth parabolic arc under gravity, then lands off-screen.
+A baseball is tossed upward and forward; it rises, slows, then falls smoothly in a single arc.
+A stone is skipped into the air from the bottom-left toward the top-right; the trajectory is a smooth arc.
+A tennis ball is launched from a small launcher, traveling forward with a clean parabolic path.
+A dart is thrown toward a target; it moves forward smoothly without teleporting or jittering.
+A paper ball is thrown across a desk; it follows a smooth arc and lands on the desk.
+A small cube is tossed; it travels in an arc while rotating steadily, then lands.
+A basketball arcs toward a hoop; horizontal motion is steady, vertical motion changes smoothly.
+A toy airplane is thrown; it moves forward and slightly upward, then descends smoothly.
+A coin is flicked into the air; it rises and falls smoothly while spinning.
+
+# Falling + impact (10 prompts)
+A ceramic mug falls straight down, accelerates, hits the floor, and stops with a clear impact moment.
+A book drops from a table, accelerates downward, hits the ground, and settles without passing through.
+A metal ball is released from rest, falls, strikes the floor, and comes to rest (no ghosting).
+A smartphone slips off a table, falls, impacts the floor, and stops with a single clear collision.
+An apple falls from a hand, accelerates, hits the ground, and rolls slightly before stopping.
+A wooden block drops vertically, impacts the floor, and settles without interpenetration.
+A glass bottle falls and hits the floor; show a clear contact moment (no floating above the ground).
+A spoon drops into a bowl; it accelerates down, hits, and settles inside the bowl.
+A key falls onto a table; it drops, contacts, and stops without jittering through the surface.
+A small rock falls into shallow water; it drops, splashes, and then rests.
+
+# Bouncing ball (10 prompts)
+A rubber ball bounces repeatedly on the floor with decreasing bounce height (energy loss), staying round.
+A basketball bounces in place; each bounce is lower than the last, with consistent ground contact.
+A ping-pong ball bounces quickly, then gradually loses height and settles.
+A bright green ball bounces down a set of steps; each impact causes a plausible rebound.
+A soccer ball bounces once high, then several smaller bounces, then stops.
+A tennis ball bounces on concrete; rebounds are smooth and heights decay over time.
+A ball drops, bounces, and rolls away with a smooth transition from bouncing to rolling.
+A rubber ball bounces under a fixed camera; the bounce point stays consistent on the floor.
+A ball bounces between two walls; collisions are clear and it never overlaps the walls.
+A ball bounces on a wooden table; it contacts, rebounds, and settles without melting or warping.
+
+# Pendulum / swinging (10 prompts)
+A pendulum swings back and forth smoothly; the pivot point is fixed and the string length is constant.
+A hanging weight on a string swings; turning points are smooth with clear velocity reversal.
+A metronome pendulum swings left-right periodically with consistent arc length and fixed hinge.
+A chandelier swings gently; its attachment point stays fixed and motion is periodic.
+A playground swing moves back and forth; the chains remain the same length and the seat stays attached.
+A wrecking-ball pendulum swings; it slows at extremes and speeds up at the bottom smoothly.
+A small pendulum clock weight swings steadily; no teleporting or sudden angle jumps.
+A hanging lamp swings; the cord stays taut and the lamp remains rigid.
+A pendulum starts from rest, is released, then oscillates with gradually decreasing amplitude.
+Two pendulums swing side-by-side; both have fixed pivots and consistent string lengths.
+
+# Rolling object (10 prompts)
+A wheel rolls forward while rotating consistently (no sliding); the contact point behavior looks correct.
+A soccer ball rolls across the floor; rotation matches translation (no skating).
+A bowling ball rolls forward smoothly; it rotates as it moves with realistic friction.
+A coin rolls on its edge; it rotates and gradually wobbles before falling.
+A toy car wheel spins as the car moves; wheel rotation speed matches the car’s motion.
+A barrel rolls down a gentle incline; it rotates steadily and accelerates smoothly.
+A ball rolls down a ramp; it accelerates and spins faster as it descends.
+A wheel rolls, hits a small bump, then continues rolling without teleporting.
+A rolling ball curves slightly due to spin; motion remains smooth and continuous.
+A skateboard wheel rolls; the wheel rotates and the board translates smoothly.
+
+# Collision between objects (10 prompts)
+Two billiard balls collide; after impact both change direction plausibly and never overlap.
+A moving ball hits a stationary ball; momentum transfers and the stationary ball starts moving.
+A cube slides into another cube; they collide, stop/deflect, and do not interpenetrate.
+A ball hits a wall and bounces back with a clear contact moment.
+Two toy cars collide; both change motion after impact without passing through each other.
+A ball knocks over a stack of blocks; blocks collide and fall with clear contacts.
+A puck slides into another puck; they collide and separate smoothly.
+A ball collides with a cone; the cone tips over with a plausible torque and contact.
+Two spheres collide at an angle; both trajectories change smoothly after the collision.
+A rolling ball hits a can; the can moves away while the ball slows or deflects.
+
+# Fluid-like motion (boiling water / smoke) (10 prompts)
+Water boiling in a transparent kettle: bubbles rise continuously and flow is coherent frame-to-frame.
+Steam rising from a hot cup: smooth swirling motion with evolving vortices, no texture teleporting.
+Smoke from a candle: continuous curling plumes that change smoothly over time.
+Ink dropped into water: diffusion-like billows that expand and swirl continuously.
+A small waterfall: water flows downward continuously with coherent ripples.
+Ocean waves: rolling waves move smoothly with consistent direction and continuous texture.
+A river current: water moves steadily downstream with coherent surface motion.
+Fog drifting across a field: slow continuous flow, no sudden jumps or popping.
+A swirling whirlpool: rotating fluid motion with stable center and smooth rotation.
+Steam from boiling pasta: rising, dispersing plumes that evolve smoothly without flicker.

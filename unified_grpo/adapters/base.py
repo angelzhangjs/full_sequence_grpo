@@ -13,7 +13,6 @@ class StepContext:
     step_index: int
     t: torch.Tensor  # scalar timestep token (shape [] or [B])
 
-
 @dataclass
 class StepOutput:
     """Output of one denoising step."""
@@ -21,6 +20,7 @@ class StepOutput:
     next_latents: torch.Tensor
     action: torch.Tensor  # model output driving the solver (e.g., noise_pred / velocity)
     x0_latents: Optional[torch.Tensor] = None  # optional x0 estimate (if available)
+    solver_state: Optional[Any] = None  # optional per-solver state for multistep schedulers
 
 
 class VideoGRPOAdapter(Protocol):
@@ -45,6 +45,7 @@ class VideoGRPOAdapter(Protocol):
         with_grad: bool,
         rollout_noise_scale: float,
         rollout_index: int,
+        solver_state: Optional[Any] = None,
     ) -> StepOutput: ...
 
     def decode_for_reward(

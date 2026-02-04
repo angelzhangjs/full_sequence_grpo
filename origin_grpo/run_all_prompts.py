@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
-Run baseline LTX-Video inference (with per-timestep intermediate x0 videos) and/or
-GRPO-style training once per prompt, sequentially.
+Run LTX-Video baseline intermediates and/or GRPO-style training once per prompt, sequentially.
 
 This script loops over a prompt file (default: prompt.txt). For each non-empty line:
-  - runs baseline_intermediate_videos.py with --prompt set to that line
+  - runs grpo_modular_pipeline.py with --prompt set to that line
   - writes outputs into a per-prompt output directory
 
 Usage:
@@ -33,6 +32,11 @@ def _read_prompts(path: Path) -> list[str]:
     prompts: list[str] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         text = line.strip()
+        if not text:
+            continue
+        # Allow prompt files to contain section headers / comments.
+        if text.startswith("#"):
+            continue
         if text:
             prompts.append(text)
     return prompts
@@ -64,7 +68,7 @@ def _gpu_cleanup(python_exe: str) -> None:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Run baseline_intermediate_videos.py sequentially for each prompt line.")
+    ap = argparse.ArgumentParser(description="Run grpo_modular_pipeline.py sequentially for each prompt line.")
     ap.add_argument("--prompt-file", default="prompt.txt", help="Text file with one prompt per line.")
     ap.add_argument(
         "--out-root",
@@ -80,10 +84,10 @@ def main() -> int:
         "--mode",
         default="both",
         choices=["baseline_intermediates", "grpo_train", "both"],
-        help="Which mode to run inside baseline_intermediate_videos.py for each prompt.",
+        help="Which mode to run inside grpo_modular_pipeline.py for each prompt.",
     )
     ap.add_argument("--save-every", type=int, default=1, help="Save every N denoising steps for baseline intermediates.")
-    ap.add_argument("--seed", type=int, default=2026, help="Seed to pass to baseline_intermediate_videos.py.")
+    ap.add_argument("--seed", type=int, default=2026, help="Seed to pass to grpo_modular_pipeline.py.")
     ap.add_argument("--height", type=int, default=512)
     ap.add_argument("--width", type=int, default=768)
     ap.add_argument("--num-frames", type=int, default=81)
@@ -91,7 +95,7 @@ def main() -> int:
     ap.add_argument(
         "--negative_prompt",
         default="",
-        help="Negative prompt string (passed through to baseline_intermediate_videos.py).",
+        help="Negative prompt string (passed through to grpo_modular_pipeline.py).",
     )
     # GRPO options (used when --mode is grpo_train or both)
     ap.add_argument("--num-inference-steps", type=int, default=40)
@@ -117,6 +121,10 @@ def main() -> int:
     )
     args = ap.parse_args()
 
+    # Repo root is the parent of origin_grpo/
+    repo_root = Path(__file__).resolve().parents[1]
+    pipeline_script = repo_root / "origin_grpo" / "grpo_modular_pipeline.py"
+
     prompt_file = Path(args.prompt_file).resolve()
     prompts = _read_prompts(prompt_file)
     if not prompts:
@@ -130,6 +138,13 @@ def main() -> int:
     print(f"Prompt file: {prompt_file}")
     print(f"Prompts: {len(prompts)}")
     print(f"Output root: {out_root}")
+
+    # Resolve pipeline config relative to repo root so this runner works from any cwd.
+    pipeline_config = Path(args.pipeline_config)
+    if not pipeline_config.is_absolute():
+        pipeline_config = (repo_root / pipeline_config).resolve()
+    else:
+        pipeline_config = pipeline_config.resolve()
 
     for i, prompt in enumerate(prompts):
         prompt_slug = _slug(prompt)
@@ -145,14 +160,15 @@ def main() -> int:
             env["GRPO_FROM_START"] = "1"
 
         print("\n" + "=" * 80)
-        print(f"[{i+1}/{len(prompts)}] Running baseline_intermediate_videos.py")
+        print("\n" + "=" * 80)
+        print(f"[{i+1}/{len(prompts)}] Running grpo_modular_pipeline.py")
         print(f"Prompt: {prompt}")
         print(f"Output: {prompt_dir}")
         print("=" * 80)
 
         cmd = [
             args.python,
-            "baseline_intermediate_videos.py",
+            str(pipeline_script),
             "--mode",
             args.mode,
             "--prompt",
@@ -160,7 +176,7 @@ def main() -> int:
             "--negative_prompt",
             args.negative_prompt,
             "--pipeline_config",
-            args.pipeline_config,
+            str(pipeline_config),
             "--height",
             str(args.height),
             "--width",
@@ -173,6 +189,7 @@ def main() -> int:
             str(args.seed),
             "--output_dir",
             str(prompt_dir),
+            "--no_timestamp",
             "--save_every",
             str(args.save_every),
             "--num_inference_steps",
@@ -196,9 +213,9 @@ def main() -> int:
             "--kl_beta",
             str(args.kl_beta),
         ]
-        proc = subprocess.run(cmd, env=env, cwd=str(Path(__file__).resolve().parent))
+        proc = subprocess.run(cmd, env=env, cwd=str(repo_root))
         if proc.returncode != 0:
-            print(f"ERROR: baseline_intermediate_videos.py failed for prompt {i} (exit={proc.returncode})")
+            print(f"ERROR: grpo_modular_pipeline.py failed for prompt {i} (exit={proc.returncode})")
             return proc.returncode
 
         # Extra safety: clear GPU allocator caches between prompts.

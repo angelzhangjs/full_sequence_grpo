@@ -1,7 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
 cd /home/ubuntu/angel-research/full_sequence_grpo
 
-python run_prompts_sequential.py \
-  --prompt-file action_prompts.txt \
+python origin_grpo/run_all_prompts.py \
+  --prompt-file origin_grpo/physical_plausibility.txt \
   --mode both \
   --pipeline-config configs/ltxv-2b-0.9.6-dev.yaml \
   --height 512 --width 768 --num-frames 81 --frame-rate 16 --seed 26 \
