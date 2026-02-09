@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "unified_grpo"
+version = "0.1.0"
+description = "Unified GRPO Framework for Video Diffusion Models"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.0.0",
+    "diffusers>=0.28.0",
+    "transformers>=4.40.0",
+    "accelerate>=0.20.0",
+    "peft>=0.7.0",  # For LoRA training
+    "clip",         # For text-video alignment rewards
+    "timm",         # For DINO (object tracking)
+]
+
+[tool.setuptools]
+packages = ["unified_grpo", "unified_grpo.adapters"]

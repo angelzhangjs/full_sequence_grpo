@@ -1,579 +1,549 @@
-from __future__ import annotations
+#!/usr/bin/env python3
+"""
+Unified GRPO Training Script
+Supports multiple video models via --model-type argument
+"""
 
 import argparse
-import importlib
-import inspect
-import json
-import os
-import time
-from dataclasses import asdict
+import torch
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Optional
 
+from unified_grpo.grpo_core import run_grpo_for_prompt, GRPOConfig
+
+# Import comprehensive reward function from origin_grpo
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent / "origin_grpo"))
+from reward_functions import comprehensive_grpo_reward
+from diffusers import CogVideoXPipeline
+from unified_grpo.adapters.cogvideox_adapter import CogVideoXAdapter
+# from diffusers import LTXVideoPipeline
+# from unified_grpo.adapters.ltx_adapter import LTXAdapter
+# from diffusers import HunyuanVideoPipeline
+# from unified_grpo.adapters.hunyuan_adapter import HunyuanAdapter
+# from diffusers import OpenSoraPipeline
+# from unified_grpo.adapters.opensora_adapter import OpenSoraAdapter
+# Pre-load models before GRPO:
+import clip
 import torch
 
-from unified_grpo.grpo_core import GRPOConfig, run_grpo_for_prompt
+# Load once:
+clip_model, _ = clip.load("ViT-B/32", device="cuda")
+dino_model = torch.hub.load('facebookresearch/dinov2:main', 'dinov2_vitb14')
 
 
-def _read_prompts(path: Path) -> list[str]:
-    lines: list[str] = []
-    for ln in path.read_text(encoding="utf-8").splitlines():
-        s = ln.strip()
-        if not s or s.startswith("#"):
-            continue
-        lines.append(s)
-    return lines
-
-
-def _load_reward_fn(spec: str) -> Callable[[torch.Tensor, str], torch.Tensor]:
+def reward_function_wrapper(video: torch.Tensor, prompt: str) -> torch.Tensor:
     """
-    Load a reward function from a spec like:
-      "origin_grpo.reward_functions:reward_function_simple"
-
-    The loaded callable can have signature:
-      (video_bthwc, prompt) -> Tensor|float
-    or
-      (video_bthwc, prompt, device=...) -> Tensor|float
+    Wrapper for comprehensive GRPO reward
+    
+    Uses CLIP + DINO + centering + motion from origin_grpo/reward_functions.py
     """
-    mod_name, fn_name = spec.split(":", 1)
-    mod = importlib.import_module(mod_name)
-    fn = getattr(mod, fn_name)
-    if not callable(fn):
-        raise TypeError(f"Reward spec {spec!r} resolved to non-callable: {fn!r}")
-
-    def _wrapped(video: torch.Tensor, prompt: str) -> torch.Tensor:
-        sig = inspect.signature(fn)
-        kwargs = {}
-        if "device" in sig.parameters:
-            kwargs["device"] = str(video.device)
-        out = fn(video, prompt, **kwargs) if len(sig.parameters) >= 2 else fn(video)
-        if isinstance(out, torch.Tensor):
-            return out.float().reshape([])
-        return torch.tensor(float(out), device=video.device, dtype=torch.float32)
-
-    return _wrapped
-
-
-def _dummy_reward(video: torch.Tensor, prompt: str) -> torch.Tensor:
-    return torch.tensor(0.0, device=video.device, dtype=torch.float32)
-
-
-def _build_wan21_adapter(args) -> Any:
-    # Lazy import; Wan deps are heavy and may not exist in every env.
-    from unified_grpo.adapters.wan21_adapter import Wan21Adapter  # noqa
-
-    # Ensure `wan` is importable (handled by adapter too), then create a WanT2V instance.
-    try:
-        import wan  # type: ignore
-        from wan.configs import SIZE_CONFIGS, WAN_CONFIGS  # type: ignore
-        from wan.text2video import WanT2V  # type: ignore
-    except Exception as e:  # pragma: no cover
-        raise ImportError("backend=wan21 requires Wan2.1's `wan` package to be importable.") from e
-
-    cfg = WAN_CONFIGS[str(args.wan_task)]
-    w, h = SIZE_CONFIGS[str(args.wan_size)]
-
-    wan_t2v = WanT2V(
-        cfg,
-        checkpoint_dir=str(args.wan_ckpt_dir),
-        device_id=int(args.device_id),
-        rank=0,
-        t5_fsdp=False,
-        dit_fsdp=False,
-        use_usp=False,
-        t5_cpu=bool(int(args.wan_t5_cpu)),
+    # Debug video properties
+    print("\n  [DEBUG] Video properties:")
+    print(f"    Shape: {video.shape}")
+    print(f"    Dtype: {video.dtype}")
+    print(f"    Device: {video.device}")
+    print(f"    Range: [{video.min().item():.4f}, {video.max().item():.4f}]")
+    print(f"    Mean: {video.mean().item():.4f}")
+    print(f"    Non-zero elements: {(video.abs() > 0.001).sum().item()} / {video.numel()}")
+    
+    # comprehensive_grpo_reward returns dict with scores
+    result = comprehensive_grpo_reward(
+        video=video,
+        prompt=prompt,
+        device='cuda',
+        use_clip=True,
+        use_dino=True,
     )
-
-    adapter = Wan21Adapter(
-        wan=wan_t2v,
-        prompt=str(args.prompt_for_adapter),
-        negative_prompt=str(args.negative_prompt or ""),
-        width=int(w),
-        height=int(h),
-        num_frames=int(args.num_frames),
-        shift=float(args.wan_shift),
-        guide_scale=float(args.guidance_scale),
-        sample_solver=str(args.wan_solver),
-        train_blocks=None,
-    )
-    return adapter
+    
+    print(f"  [DEBUG] Reward result: {result}")
+    
+    # Extract total reward (key is 'reward', not 'total_reward')
+    total_reward = result.get('reward', 0.0)
+    
+    print(f"  [DEBUG] Total reward: {total_reward:.6f}\n")
+    
+    return torch.tensor(total_reward, device=video.device)
 
 
-def _build_opensora_adapter(args) -> Any:
-    from unified_grpo.adapters.opensora_adapter import OpenSoraWrapper  # noqa
-
-    # Put Open-Sora on python path if needed.
-    opensora_root = Path(args.opensora_root).resolve()
-    if str(opensora_root) not in os.sys.path:
-        os.sys.path.insert(0, str(opensora_root))
-
-    from mmengine.config import Config  # type: ignore
-    from opensora.utils.misc import to_torch_dtype  # type: ignore
-    from opensora.utils.sampling import prepare_models  # type: ignore
-
-    cfg = Config.fromfile(str(args.opensora_config))
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    dtype = to_torch_dtype(getattr(args, "dtype", "bf16"))
-
-    model, model_ae, model_t5, model_clip, optional_models = prepare_models(
-        cfg, device, dtype, offload_model=bool(int(args.opensora_offload))
-    )
-
-    adapter = OpenSoraWrapper(
-        model=model,
-        model_ae=model_ae,
-        model_t5=model_t5,
-        model_clip=model_clip,
-        optional_models=optional_models,
-        prompt=str(args.prompt_for_adapter),
-        negative_prompt=str(args.negative_prompt or ""),
-        height=int(args.height),
-        width=int(args.width),
-        num_frames=int(args.num_frames),
-        guidance=float(args.guidance_scale),
-        guidance_img=float(args.opensora_guidance_img),
-        shift=bool(int(args.opensora_shift)),
-        flow_shift=None if args.opensora_flow_shift is None else float(args.opensora_flow_shift),
-        patch_size=int(args.opensora_patch_size),
-        channel=int(args.opensora_channel),
-        temporal_reduction=int(args.opensora_temporal_reduction),
-        is_causal_vae=bool(int(args.opensora_is_causal_vae)),
-    )
-    return adapter
-
-
-def _build_cogvideox_adapter(args) -> Any:
-    from unified_grpo.adapters.cogvideox_adapter import CogVideoXAdapter  # noqa
-
-    try:
-        from diffusers import CogVideoXPipeline  # type: ignore
-    except Exception as e:  # pragma: no cover
-        raise ImportError("backend=cogvideox requires `diffusers` installed in the current env.") from e
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    dtype = torch.bfloat16 if args.cog_dtype == "bf16" else torch.float16
-
-    pipe = CogVideoXPipeline.from_pretrained(str(args.cog_model_path), torch_dtype=dtype).to(device=device)
-
-    do_cfg = float(args.guidance_scale) > 1.0
-    prompt_embeds, negative_prompt_embeds = pipe.encode_prompt(
-        str(args.prompt_for_adapter),
-        str(args.negative_prompt or ""),
-        do_cfg,
-        device=device,
-    )
-
-    adapter = CogVideoXAdapter(
-        pipeline=pipe,
-        prompt_embeds=prompt_embeds,
-        negative_prompt_embeds=negative_prompt_embeds,
-        guidance_scale=float(args.guidance_scale),
-        height=int(args.height),
-        width=int(args.width),
-        num_frames=int(args.num_frames),
-        attention_kwargs=None,
-        extra_step_kwargs=None,
-        train_transformer_blocks=None,
-    )
-    return adapter
-
-
-def _build_hunyuan15_adapter(args) -> Any:
-    """
-    Build Hunyuan pipeline via the official repo helper (HunyuanVideoSampler), then wrap it into Hunyuan15Adapter.
-    """
-    from unified_grpo.adapters.hunyuan15_adapter import Hunyuan15Adapter  # noqa
-
-    try:
-        from hyvideo.inference import HunyuanVideoSampler  # type: ignore
-        from hyvideo.diffusion.schedulers import FlowMatchDiscreteScheduler  # type: ignore
-    except Exception as e:  # pragma: no cover
-        raise ImportError("backend=hunyuan15 requires the HunyuanVideo dependencies to be importable.") from e
-
-    import argparse as _argparse
-    from pathlib import Path as _Path
-
-    # Construct minimal args namespace using defaults from hyvideo.config + overrides we care about.
-    # NOTE: hyvideo.config.parse_args() parses sys.argv, so we avoid it here and build the namespace directly.
-    # The sampler expects many fields; we set the commonly required ones for inference.
-    ns = _argparse.Namespace()
-    # Required by Inference.from_pretrained path
-    ns.ulysses_degree = 1
-    ns.ring_degree = 1
-    ns.use_cpu_offload = bool(int(args.hunyuan_cpu_offload))
-    ns.use_fp8 = False
-    ns.denoise_type = "flow"
-
-    # Network / precision
-    ns.model = str(args.hunyuan_model)
-    ns.latent_channels = int(args.hunyuan_latent_channels)
-    ns.precision = str(args.hunyuan_precision)
-    ns.rope_theta = int(args.hunyuan_rope_theta)
-
-    # Extra models
-    ns.vae = str(args.hunyuan_vae)
-    ns.vae_precision = str(args.hunyuan_vae_precision)
-    ns.vae_tiling = True
-    ns.text_encoder = str(args.hunyuan_text_encoder)
-    ns.text_encoder_precision = str(args.hunyuan_text_encoder_precision)
-    ns.text_states_dim = int(args.hunyuan_text_states_dim)
-    ns.text_len = int(args.hunyuan_text_len)
-    ns.tokenizer = str(args.hunyuan_tokenizer)
-    ns.prompt_template = str(args.hunyuan_prompt_template)
-    ns.prompt_template_video = str(args.hunyuan_prompt_template_video)
-    ns.hidden_state_skip_layer = int(args.hunyuan_hidden_state_skip_layer)
-    ns.apply_final_norm = bool(int(args.hunyuan_apply_final_norm))
-
-    ns.text_encoder_2 = str(args.hunyuan_text_encoder_2)
-    ns.text_encoder_precision_2 = str(args.hunyuan_text_encoder_precision_2)
-    ns.text_states_dim_2 = int(args.hunyuan_text_states_dim_2)
-    ns.tokenizer_2 = str(args.hunyuan_tokenizer_2)
-    ns.text_len_2 = int(args.hunyuan_text_len_2)
-
-    # Denoise schedule
-    ns.flow_shift = float(args.hunyuan_flow_shift)
-    ns.flow_reverse = bool(int(args.hunyuan_flow_reverse))
-    ns.flow_solver = str(args.hunyuan_flow_solver)
-
-    # Misc
-    ns.disable_autocast = False
-    ns.vae_ver = str(args.hunyuan_vae)
-    ns.batch_size = 1
-    ns.num_videos = 1
-
-    models_root = _Path(str(args.hunyuan_model_base))
-    sampler = HunyuanVideoSampler.from_pretrained(models_root, args=ns)
-    pipe = sampler.pipeline
-
-    # Set scheduler (matches HunyuanVideoSampler.predict)
-    scheduler = FlowMatchDiscreteScheduler(
-        shift=float(args.hunyuan_flow_shift),
-        reverse=bool(int(args.hunyuan_flow_reverse)),
-        solver=str(args.hunyuan_flow_solver),
-    )
-    pipe.scheduler = scheduler
-
-    # Build rotary freqs and n_tokens (matches sampler.predict)
-    freqs_cos, freqs_sin = sampler.get_rotary_pos_embed(int(args.num_frames), int(args.height), int(args.width))
-    n_tokens = int(freqs_cos.shape[0])
-
-    # Encode prompt once and cache; adapter will wrap transformer call.
-    pipe._guidance_scale = float(args.guidance_scale)
-    prompt_embeds, negative_prompt_embeds, prompt_mask, negative_prompt_mask = pipe.encode_prompt(
-        prompt=[str(args.prompt_for_adapter)],
-        device=pipe._execution_device,
-        do_classifier_free_guidance=pipe.do_classifier_free_guidance,
-        negative_prompt=[str(args.negative_prompt or "")],
-        prompt_embeds=None,
-        attention_mask=None,
-        negative_prompt_embeds=None,
-        negative_attention_mask=None,
-        lora_scale=None,
-        clip_skip=getattr(pipe, "clip_skip", None),
-        text_encoder=pipe.text_encoder,
-        data_type="video",
-    )
-
-    # Concatenate for CFG (same as pipeline __call__)
-    if pipe.do_classifier_free_guidance:
-        prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds])
-        if prompt_mask is not None:
-            prompt_mask = torch.cat([negative_prompt_mask, prompt_mask])
-
-    embedded_guidance_scale = None if args.hunyuan_embedded_cfg_scale is None else float(args.hunyuan_embedded_cfg_scale)
-
-    # Wrap transformer to accept only (x, t_expand) like our adapter expects.
-    orig_tr = pipe.transformer
-
-    def _wrapped_transformer(x, t_expand, return_dict=False):
-        guidance_expand = (
-            torch.tensor([embedded_guidance_scale] * x.shape[0], device=x.device, dtype=torch.float32).to(x.dtype) * 1000.0
-            if embedded_guidance_scale is not None
-            else None
+def create_cogvideox_adapter(args):
+    """Create CogVideoX adapter"""
+    from unified_grpo.lora_utils import apply_lora_to_transformer
+    
+    print(f"Loading CogVideoX pipeline: {args.model_path}")
+    pipeline = CogVideoXPipeline.from_pretrained(
+        args.model_path,
+        torch_dtype=torch.bfloat16,
+    ).to("cuda")
+    
+    # Ensure all components use consistent dtype
+    pipeline.transformer = pipeline.transformer.to(torch.bfloat16)
+    pipeline.vae = pipeline.vae.to(torch.bfloat16)
+    pipeline.text_encoder = pipeline.text_encoder.to(torch.bfloat16)
+    
+    # Apply LoRA if requested (recommended for 40GB GPU!)
+    if args.use_lora:
+        # Parse lora_blocks if provided
+        lora_blocks = None
+        if args.lora_blocks:
+            lora_blocks = [int(x.strip()) for x in args.lora_blocks.split(",")]
+        
+        pipeline.transformer, lora_params = apply_lora_to_transformer(
+            pipeline.transformer,
+            rank=args.lora_rank,
+            alpha=args.lora_alpha,
+            target_blocks=lora_blocks,
         )
-        out = orig_tr(
-            x,
-            t_expand,
-            text_states=prompt_embeds,
-            text_mask=prompt_mask,
-            text_states_2=None,
-            freqs_cos=freqs_cos,
-            freqs_sin=freqs_sin,
-            guidance=guidance_expand,
-            return_dict=True,
-        )["x"]
-        return (out,) if not return_dict else {"x": out}
-
-    pipe.transformer = _wrapped_transformer  # type: ignore
-
-    # Build latent_model_input_builder that applies CFG expansion + scheduler scaling.
-    def latent_model_input_builder(lat, t):
-        latent_model_input = torch.cat([lat] * 2) if pipe.do_classifier_free_guidance else lat
-        latent_model_input = pipe.scheduler.scale_model_input(latent_model_input, t)
-        t_expand = t.repeat(latent_model_input.shape[0])
-        return latent_model_input, t_expand
-
-    # Some schedulers require n_tokens on set_timesteps; stash it on the pipe for adapter use.
-    setattr(pipe, "_grpo_n_tokens", n_tokens)
-
-    extra_step_kwargs = {}
-    adapter = Hunyuan15Adapter(
-        pipe=pipe,
-        latent_model_input_builder=latent_model_input_builder,
-        extra_step_kwargs=extra_step_kwargs,
-        prompt=str(args.prompt_for_adapter),
-        video_length=int(args.num_frames),
-        height=int(args.height),
-        width=int(args.width),
-        train_double_blocks=None,
-    )
-    return adapter
-
-
-def _build_ltx_adapter(args) -> Any:
-    from unified_grpo.adapters.ltx_adapter import LTXAdapter  # noqa
-    try:
-        from ltx_video.inference import load_pipeline_config, create_ltx_video_pipeline  # type: ignore
-    except Exception as e:  # pragma: no cover
-        raise ImportError("backend=ltx requires LTX-Video python deps to be importable (ltx_video).") from e
-
-    cfg = load_pipeline_config(str(args.ltx_pipeline_config))
-    ckpt_path = str(args.ltx_ckpt_path) if args.ltx_ckpt_path else str(cfg["checkpoint_path"])
-    text_enc = str(cfg["text_encoder_model_name_or_path"])
-    precision = str(cfg.get("precision", "bfloat16"))
-    sampler = str(cfg.get("sampler", "from_checkpoint"))
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    pipe = create_ltx_video_pipeline(
-        ckpt_path=ckpt_path,
-        precision=precision,
-        text_encoder_model_name_or_path=text_enc,
-        sampler=sampler,
-        device=device,
-        enhance_prompt=False,
-    )
-
-    do_cfg = float(args.guidance_scale) > 1.0
-    (
-        prompt_embeds,
-        negative_prompt_embeds,
-        prompt_attention_mask,
-        negative_prompt_attention_mask,
-    ) = pipe.encode_prompt(
-        prompt=str(args.prompt_for_adapter),
-        do_classifier_free_guidance=do_cfg,
-        negative_prompt=str(args.negative_prompt or ""),
-        device=torch.device(device),
-    )
-
-    # Minimal indices_grid: for LTX, we need patch token coordinates. We approximate by patchifying the initial noise latents once.
-    # This is sufficient for unified GRPO training code that uses transformer(inputs=latents_tokens, indices_grid=coords).
-    # NOTE: Full LTX fidelity would also require conditioning_mask support; we use pure t2v (no conditioning items).
-    latent_h = int(args.height) // int(pipe.vae_scale_factor)
-    latent_w = int(args.width) // int(pipe.vae_scale_factor)
-    latent_f = int(args.num_frames) // int(pipe.video_scale_factor)
-    if hasattr(pipe.vae, "__class__") and pipe.video_scale_factor > 1:
-        # causal VAE adds one latent frame
-        latent_f += 1
-    g = torch.Generator(device=device).manual_seed(int(args.seed))
-    init_latents = torch.randn(
-        (1, int(pipe.transformer.config.in_channels), latent_f, latent_h, latent_w),
-        device=device,
-        dtype=torch.bfloat16,
-        generator=g,
-    )
-    lat_tokens, lat_coords = pipe.patchifier.patchify(latents=init_latents)
-    from ltx_video.models.autoencoders.vae_encode import latent_to_pixel_coords  # type: ignore
-
-    pixel_coords = latent_to_pixel_coords(lat_coords, pipe.vae, causal_fix=pipe.transformer.config.causal_temporal_positioning)
-    indices_grid = pixel_coords.to(torch.float32)
-    indices_grid[:, 0] = indices_grid[:, 0] * (1.0 / float(args.ltx_frame_rate))
-
-    adapter = LTXAdapter(
-        pipeline=pipe,
-        prompt_embeds=prompt_embeds,
-        prompt_attention_mask=prompt_attention_mask,
-        indices_grid=indices_grid,
-        height=int(args.height),
-        width=int(args.width),
-        num_frames=int(args.num_frames),
-        x0_is_patchified=True,
-        trainable_blocks=None,
-    )
-    return adapter
-
-
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--backend", type=str, required=True, choices=["wan21", "opensora", "cogvideox", "hunyuan15", "ltx"])
-
-    # prompts
-    ap.add_argument("--prompt", type=str, default=None)
-    ap.add_argument("--prompt_file", type=str, default=None)
-    ap.add_argument("--negative_prompt", type=str, default="")
-
-    # common generation
-    ap.add_argument("--seed", type=int, default=26)
-    ap.add_argument("--height", type=int, default=512)
-    ap.add_argument("--width", type=int, default=768)
-    ap.add_argument("--num_frames", type=int, default=81)
-
-    # GRPO
-    ap.add_argument("--num_inference_steps", type=int, default=40)
-    ap.add_argument("--num_grpo_steps", type=int, default=25)
-    ap.add_argument("--num_rollouts", type=int, default=3)
-    ap.add_argument("--rollout_noise_scale", type=float, default=0.5)
-    ap.add_argument("--lr", type=float, default=1e-5)
-    ap.add_argument("--grad_clip", type=float, default=1.0)
-    ap.add_argument("--logprob_sigma", type=float, default=1.0)
-
-    # output
-    ap.add_argument("--out_dir", type=str, default="unified_runs")
-    ap.add_argument("--run_name", type=str, default=None)
-
-    # reward
-    ap.add_argument("--reward", type=str, default="dummy", choices=["dummy", "spec"])
-    ap.add_argument("--reward_spec", type=str, default=None, help="module:function")
-
-    # Wan2.1 backend
-    ap.add_argument("--wan_ckpt_dir", type=str, default=None)
-    ap.add_argument("--wan_task", type=str, default="t2v-1.3B")
-    ap.add_argument("--wan_size", type=str, default="832*480")
-    ap.add_argument("--wan_shift", type=float, default=8.0)
-    ap.add_argument("--wan_solver", type=str, default="unipc", choices=["unipc", "dpm++"])
-    ap.add_argument("--wan_t5_cpu", type=int, default=1)
-    ap.add_argument("--device_id", type=int, default=0)
-    ap.add_argument("--guidance_scale", type=float, default=6.0)
-
-    # Open-Sora backend
-    # CogVideoX backend
-    ap.add_argument("--cog_model_path", type=str, default=None)
-    ap.add_argument("--cog_dtype", type=str, default="bf16", choices=["bf16", "fp16"])
-
-    # Hunyuan backend
-    ap.add_argument("--hunyuan_model_base", type=str, default=None)
-    ap.add_argument("--hunyuan_cpu_offload", type=int, default=0)
-    ap.add_argument("--hunyuan_model", type=str, default="HYVideo-T/2-cfgdistill")
-    ap.add_argument("--hunyuan_latent_channels", type=int, default=16)
-    ap.add_argument("--hunyuan_precision", type=str, default="bf16")
-    ap.add_argument("--hunyuan_rope_theta", type=int, default=256)
-    ap.add_argument("--hunyuan_vae", type=str, default="884-16c-hy")
-    ap.add_argument("--hunyuan_vae_precision", type=str, default="fp16")
-    ap.add_argument("--hunyuan_text_encoder", type=str, default="llm")
-    ap.add_argument("--hunyuan_text_encoder_precision", type=str, default="fp16")
-    ap.add_argument("--hunyuan_text_states_dim", type=int, default=4096)
-    ap.add_argument("--hunyuan_text_len", type=int, default=256)
-    ap.add_argument("--hunyuan_tokenizer", type=str, default="llm")
-    ap.add_argument("--hunyuan_prompt_template", type=str, default="dit-llm-encode")
-    ap.add_argument("--hunyuan_prompt_template_video", type=str, default="dit-llm-encode-video")
-    ap.add_argument("--hunyuan_hidden_state_skip_layer", type=int, default=2)
-    ap.add_argument("--hunyuan_apply_final_norm", type=int, default=0)
-    ap.add_argument("--hunyuan_text_encoder_2", type=str, default="clipL")
-    ap.add_argument("--hunyuan_text_encoder_precision_2", type=str, default="fp16")
-    ap.add_argument("--hunyuan_text_states_dim_2", type=int, default=768)
-    ap.add_argument("--hunyuan_tokenizer_2", type=str, default="clipL")
-    ap.add_argument("--hunyuan_text_len_2", type=int, default=77)
-    ap.add_argument("--hunyuan_flow_shift", type=float, default=7.0)
-    ap.add_argument("--hunyuan_flow_reverse", type=int, default=0)
-    ap.add_argument("--hunyuan_flow_solver", type=str, default="euler")
-    ap.add_argument("--hunyuan_embedded_cfg_scale", type=float, default=None)
-
-    # LTX backend
-    ap.add_argument("--ltx_pipeline_config", type=str, default="configs/ltxv-2b-0.9.6-dev.yaml")
-    ap.add_argument("--ltx_ckpt_path", type=str, default=None)
-    ap.add_argument("--ltx_frame_rate", type=int, default=16)
-
-    ap.add_argument("--opensora_root", type=str, default="Open-Sora")
-    ap.add_argument("--opensora_config", type=str, default=None)
-    ap.add_argument("--opensora_offload", type=int, default=0)
-    ap.add_argument("--dtype", type=str, default="bf16", choices=["bf16", "fp16", "fp32"])
-    ap.add_argument("--opensora_guidance_img", type=float, default=1.0)
-    ap.add_argument("--opensora_shift", type=int, default=1)
-    ap.add_argument("--opensora_flow_shift", type=float, default=None)
-    ap.add_argument("--opensora_patch_size", type=int, default=2)
-    ap.add_argument("--opensora_channel", type=int, default=16)
-    ap.add_argument("--opensora_temporal_reduction", type=int, default=1)
-    ap.add_argument("--opensora_is_causal_vae", type=int, default=0)
-
-    args = ap.parse_args()
-
-    prompts: list[str] = []
-    if args.prompt_file:
-        prompts = _read_prompts(Path(args.prompt_file))
-    elif args.prompt:
-        prompts = [str(args.prompt)]
-    else:
-        raise SystemExit("Provide --prompt or --prompt_file")
-
-    if args.reward == "spec":
-        if not args.reward_spec:
-            raise SystemExit("--reward spec requires --reward_spec module:function")
-        reward_fn = _load_reward_fn(str(args.reward_spec))
-    else:
-        reward_fn = _dummy_reward
-
-    cfg = GRPOConfig(
-        num_inference_steps=int(args.num_inference_steps),
-        num_grpo_steps=int(args.num_grpo_steps),
-        num_rollouts=int(args.num_rollouts),
-        rollout_noise_scale=float(args.rollout_noise_scale),
-        lr=float(args.lr),
-        grad_clip=float(args.grad_clip),
-        logprob_sigma=float(args.logprob_sigma),
-    )
-
-    run_id = args.run_name or time.strftime("%Y%m%d_%H%M%S")
-    base_out = Path(args.out_dir) / f"{args.backend}_{run_id}"
-    base_out.mkdir(parents=True, exist_ok=True)
-
-    all_metrics = []
-    for i, prompt in enumerate(prompts):
-        prompt_out = base_out / f"p{i:03d}"
-        prompt_out.mkdir(parents=True, exist_ok=True)
-        (prompt_out / "prompt.txt").write_text(prompt, encoding="utf-8")
-
-        # Build adapter per prompt because some backends cache prompt embeddings internally.
-        args.prompt_for_adapter = prompt
-
-        if args.backend == "wan21":
-            if not args.wan_ckpt_dir:
-                raise SystemExit("--wan_ckpt_dir is required for backend=wan21")
-            adapter = _build_wan21_adapter(args)
-        elif args.backend == "opensora":
-            if not args.opensora_config:
-                raise SystemExit("--opensora_config is required for backend=opensora")
-            adapter = _build_opensora_adapter(args)
-        elif args.backend == "cogvideox":
-            if not args.cog_model_path:
-                raise SystemExit("--cog_model_path is required for backend=cogvideox")
-            adapter = _build_cogvideox_adapter(args)
-        elif args.backend == "hunyuan15":
-            if not args.hunyuan_model_base:
-                raise SystemExit("--hunyuan_model_base is required for backend=hunyuan15")
-            adapter = _build_hunyuan15_adapter(args)
-        elif args.backend == "ltx":
-            if not args.ltx_pipeline_config:
-                raise SystemExit("--ltx_pipeline_config is required for backend=ltx")
-            adapter = _build_ltx_adapter(args)
+        if lora_blocks:
+            print(f"✅ LoRA applied to blocks {lora_blocks} (ultra memory-efficient!)")
         else:
-            raise SystemExit(f"Unsupported backend: {args.backend}")
+            print("✅ LoRA applied to ALL blocks (memory-efficient training!)")
+    else:
+        print("⚠️  Training unfrozen blocks (needs 48GB+ VRAM)")
+    
+    # Memory optimizations
+    pipeline.vae.enable_slicing()
+    pipeline.vae.enable_tiling()
+    
+    print("✅ Memory optimizations enabled")
+    
+    # Encode prompt
+    prompt_embeds, negative_embeds = pipeline.encode_prompt(
+        prompt=args.prompt,
+        negative_prompt="",
+        do_classifier_free_guidance=True,
+        device="cuda",
+    )
+    
+    # Parse train blocks
+    train_blocks = None
+    if args.train_blocks:
+        train_blocks = [int(x.strip()) for x in args.train_blocks.split(",")]
+    
+    adapter = CogVideoXAdapter(
+        pipeline=pipeline,
+        prompt_embeds=prompt_embeds,
+        negative_prompt_embeds=negative_embeds,
+        guidance_scale=args.guidance_scale,
+        height=args.height,
+        width=args.width,
+        num_frames=args.num_frames,
+        train_transformer_blocks=train_blocks,
+    )
+    
+    return adapter
 
-        metrics = run_grpo_for_prompt(
-            adapter=adapter,
-            prompt=prompt,
-            reward_fn=reward_fn,
-            seed=int(args.seed),
-            out_dir=prompt_out,
-            cfg=cfg,
-        )
-        metrics["prompt_index"] = float(i)
-        all_metrics.append(metrics)
-        (prompt_out / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
 
-    (base_out / "all_metrics.json").write_text(json.dumps(all_metrics, indent=2), encoding="utf-8")
-    print(f"[done] wrote: {base_out}")
+def create_ltx_adapter(args):
+    """Create LTX-Video adapter"""
+    from diffusers import LTXVideoPipeline
+    from unified_grpo.adapters.ltx_adapter import LTXAdapter
+    
+    print(f"Loading LTX-Video pipeline: {args.model_path}")
+    pipeline = LTXVideoPipeline.from_pretrained(
+        args.model_path,
+        torch_dtype=torch.bfloat16,
+    ).to("cuda")
+    
+    pipeline.vae.enable_slicing()
+    pipeline.vae.enable_tiling()
+    
+    # Encode prompt
+    prompt_embeds_tuple = pipeline.encode_prompt(
+        prompt=args.prompt,
+        device="cuda",
+        num_images_per_prompt=1,
+        do_classifier_free_guidance=True,
+    )
+    prompt_embeds = prompt_embeds_tuple[0]
+    negative_embeds = prompt_embeds_tuple[2]
+    
+    train_blocks = None
+    if args.train_blocks:
+        train_blocks = [int(x.strip()) for x in args.train_blocks.split(",")]
+    
+    adapter = LTXAdapter(
+        pipeline=pipeline,
+        prompt_embeds=prompt_embeds,
+        negative_prompt_embeds=negative_embeds,
+        guidance_scale=args.guidance_scale,
+        height=args.height,
+        width=args.width,
+        num_frames=args.num_frames,
+        train_transformer_blocks=train_blocks,
+    )
+    
+    return adapter
+
+
+def create_hunyuan_adapter(args):
+    """Create HunyuanVideo adapter"""
+    from diffusers import HunyuanVideoPipeline
+    from unified_grpo.adapters.hunyuan_adapter import HunyuanAdapter
+    
+    print(f"Loading HunyuanVideo pipeline: {args.model_path}")
+    pipeline = HunyuanVideoPipeline.from_pretrained(
+        args.model_path,
+        torch_dtype=torch.bfloat16,
+    ).to("cuda")
+    
+    pipeline.vae.enable_slicing()
+    pipeline.vae.enable_tiling()
+    
+    # Encode prompt
+    prompt_embeds = pipeline.encode_prompt(
+        prompt=args.prompt,
+        device="cuda",
+    )
+    
+    train_blocks = None
+    if args.train_blocks:
+        train_blocks = [int(x.strip()) for x in args.train_blocks.split(",")]
+    
+    adapter = HunyuanAdapter(
+        pipeline=pipeline,
+        prompt_embeds=prompt_embeds,
+        negative_prompt_embeds=None,
+        guidance_scale=args.guidance_scale,
+        height=args.height,
+        width=args.width,
+        num_frames=args.num_frames,
+        train_transformer_blocks=train_blocks,
+    )
+    
+    return adapter
+
+
+def create_wan_adapter(args):
+    """Create Wan2.1 adapter"""
+    import sys
+    from pathlib import Path
+    
+    # Add Wan2.1 to path
+    wan_path = Path(__file__).parent.parent.parent / "Wan2.1"
+    sys.path.insert(0, str(wan_path))
+    
+    from wan.text2video import WanT2V
+    from unified_grpo.adapters.wan_adapter import WanAdapter
+    
+    print(f"Loading Wan2.1 pipeline from Wan2.1 folder")
+    print("Using custom Wan implementation")
+    
+    # Load Wan model
+    wan_model = WanT2V()  # Will need config path
+    
+    # Create wrapper that looks like pipeline
+    class WanPipelineWrapper:
+        def __init__(self, model):
+            self.model = model
+            self.transformer = model  # For adapter compatibility
+            # Add other attributes as needed
+    
+    pipeline = WanPipelineWrapper(wan_model)
+    
+    # For now, raise with better instructions
+    raise NotImplementedError(
+        "Wan adapter requires additional configuration. "
+        "See: Wan2.1/generate.py for usage pattern. "
+        "Will be completed when Wan pipeline wrapper is ready."
+    )
+
+
+def create_opensora_adapter(args):
+    """Create Open-Sora adapter"""
+    
+    from diffusers import OpenSoraPipeline
+    from unified_grpo.adapters.opensora_adapter import OpenSoraAdapter
+    
+    print(f"Loading Open-Sora pipeline: {args.model_path}")
+    pipeline = OpenSoraPipeline.from_pretrained(
+        args.model_path,
+        torch_dtype=torch.float16,
+    ).to("cuda")
+    
+    pipeline.vae.enable_slicing()
+    
+    # Encode prompt
+    prompt_embeds = pipeline.encode_prompt(
+        prompt=args.prompt,
+        device="cuda",
+    )
+    
+    train_blocks = None
+    if args.train_blocks:
+        train_blocks = [int(x.strip()) for x in args.train_blocks.split(",")]
+    
+    adapter = OpenSoraAdapter(
+        pipeline=pipeline,
+        prompt_embeds=prompt_embeds,
+        negative_prompt_embeds=None,
+        guidance_scale=args.guidance_scale,
+        height=args.height,
+        width=args.width,
+        num_frames=args.num_frames,
+        train_transformer_blocks=train_blocks,
+    )
+    
+    return adapter
+
+
+def create_adapter(args):
+    """Create appropriate adapter based on model type"""
+    
+    model_type = args.model_type.lower()
+    
+    if model_type == "cogvideox":
+        return create_cogvideox_adapter(args)
+    elif model_type == "ltx":
+        return create_ltx_adapter(args)
+    elif model_type == "hunyuan":
+        return create_hunyuan_adapter(args)
+    elif model_type == "wan":
+        return create_wan_adapter(args)
+    elif model_type == "opensora":
+        return create_opensora_adapter(args)
+    else:
+        raise ValueError(f"Unknown model type: {model_type}. Choose from: cogvideox, ltx, hunyuan, wan, opensora")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Unified GRPO Training for Multiple Video Models",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # CogVideoX:
+  python run_unified_grpo.py --model-type cogvideox --model-path THUDM/CogVideoX-5b
+  
+  # LTX-Video:
+  python run_unified_grpo.py --model-type ltx --model-path Lightricks/LTX-Video
+  
+  # HunyuanVideo:
+  python run_unified_grpo.py --model-type hunyuan --model-path Tencent/HunyuanVideo
+"""
+    )
+    
+    # ========================================================================
+    # Model Selection
+    # ========================================================================
+    
+    parser.add_argument(
+        "--model-type",
+        type=str,
+        required=True,
+        choices=["cogvideox", "ltx", "hunyuan", "wan", "opensora"],
+        help="Type of video model to use"
+    )
+    
+    parser.add_argument(
+        "--model-path",
+        type=str,
+        help="HuggingFace model path or local path"
+    )
+    
+    # ========================================================================
+    # Prompt
+    # ========================================================================
+    
+    parser.add_argument(
+        "--prompt",
+        type=str,
+        default="A ball bouncing up a staircase",
+        help="Text prompt for generation"
+    )
+    
+    # ========================================================================
+    # Video Parameters
+    # ========================================================================
+    
+    parser.add_argument("--height", type=int, default=480)
+    parser.add_argument("--width", type=int, default=720)
+    parser.add_argument("--num-frames", type=int, default=49)
+    parser.add_argument("--guidance-scale", type=float, default=6.0)
+    
+    # ========================================================================
+    # GRPO Parameters
+    # ========================================================================
+    
+    parser.add_argument(
+        "--num-inference-steps",
+        type=int,
+        default=40,
+        help="Total denoising steps"
+    )
+    
+    parser.add_argument(
+        "--num-grpo-steps",
+        type=int,
+        default=20,
+        help="Last N steps to apply GRPO"
+    )
+    
+    parser.add_argument(
+        "--num-rollouts",
+        type=int,
+        default=3,
+        help="Number of rollouts per GRPO step"
+    )
+    
+    parser.add_argument(
+        "--lr",
+        type=float,
+        default=1e-5,
+        help="Learning rate"
+    )
+    
+    parser.add_argument("--seed", type=int, default=42)
+    
+    # ========================================================================
+    # Training Configuration
+    # ========================================================================
+    
+    parser.add_argument(
+        "--train-blocks",
+        type=str,
+        default=None,
+        help="Comma-separated block indices (e.g., '22,23,24,25,26,27,28,29')"
+    )
+    
+    # LoRA Configuration (recommended for 40GB GPU!)
+    parser.add_argument(
+        "--use-lora",
+        action="store_true",
+        default=False,
+        help="Use LoRA for parameter-efficient training (recommended for 40GB GPU!)"
+    )
+    
+    parser.add_argument(
+        "--lora-rank",
+        type=int,
+        default=16,
+        help="LoRA rank: 8=minimal, 16=balanced, 32=large"
+    )
+    
+    parser.add_argument(
+        "--lora-alpha",
+        type=int,
+        default=32,
+        help="LoRA alpha (typically 2×rank)"
+    )
+    
+    parser.add_argument(
+        "--lora-blocks",
+        type=str,
+        default=None,
+        help="Comma-separated block indices for LoRA (e.g., '29' or '27,28,29'). If not set, applies to ALL blocks."
+    )
+    
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="./grpo_output",
+        help="Output directory"
+    )
+    
+    args = parser.parse_args()
+    
+    # ========================================================================
+    # Set model-specific defaults
+    # ========================================================================
+    
+    if args.model_path is None:
+        # Set default model path based on type
+        defaults = {
+            "cogvideox": "THUDM/CogVideoX-5b",
+            "ltx": "Lightricks/LTX-Video",
+            "hunyuan": "tencent/HunyuanVideo",
+            "wan": "Wan-AI/Wan2.1-T2V-1.3B",
+            "opensora": "hpcaitech/Open-Sora-Plan-v1.1.0",
+        }
+        args.model_path = defaults.get(args.model_type, "THUDM/CogVideoX-5b")
+    
+    if args.train_blocks is None:
+        # Set default training blocks (last 25%)
+        # Adjust based on model
+        if args.model_type == "cogvideox":
+            args.train_blocks = "22,23,24,25,26,27,28,29"  # Last 8 of ~30
+        elif args.model_type == "ltx":
+            args.train_blocks = "21,22,23,24,25,26,27"     # Last 7 of 28
+        # Add more as you implement other adapters
+    
+    # ========================================================================
+    # Display Configuration
+    # ========================================================================
+    
+    print("="*70)
+    print("UNIFIED GRPO TRAINING")
+    print("="*70)
+    print(f"Model Type: {args.model_type}")
+    print(f"Model Path: {args.model_path}")
+    print(f"Prompt: {args.prompt}")
+    print(f"Resolution: {args.width}×{args.height}, {args.num_frames} frames")
+    print(f"Inference steps: {args.num_inference_steps}")
+    print(f"GRPO steps: {args.num_grpo_steps}")
+    print(f"Rollouts: {args.num_rollouts}")
+    print(f"Learning rate: {args.lr}")
+    print(f"Training blocks: {args.train_blocks}")
+    print()
+    
+    # ========================================================================
+    # Create Adapter
+    # ========================================================================
+    
+    print("Creating adapter...")
+    adapter = create_adapter(args)
+    
+    print(f"✅ {args.model_type.upper()} adapter created")
+    print(f"  Trainable parameters: {len(adapter.trainable_parameters())}")
+    print()
+    
+    # ========================================================================
+    # GRPO Config
+    # ========================================================================
+    
+    grpo_config = GRPOConfig(
+        num_inference_steps=args.num_inference_steps,
+        num_grpo_steps=args.num_grpo_steps,
+        num_rollouts=args.num_rollouts,
+        lr=args.lr,
+    )
+    
+    # ========================================================================
+    # Run GRPO
+    # ========================================================================
+    
+    print("="*70)
+    print("RUNNING GRPO")
+    print("="*70)
+    
+    output_dir = Path(args.output_dir) / args.model_type
+    
+    print("Using comprehensive reward function (CLIP + DINO + centering + motion)")
+    
+    metrics = run_grpo_for_prompt(
+        adapter=adapter,
+        prompt=args.prompt,
+        reward_fn=reward_function_wrapper,
+        seed=args.seed,
+        out_dir=output_dir,
+        cfg=grpo_config,
+    )
+    
+    # ========================================================================
+    # Results
+    # ========================================================================
+    
+    print("\n" + "="*70)
+    print("TRAINING COMPLETE!")
+    print("="*70)
+    print(f"Model: {args.model_type}")
+    print("Metrics:")
+    for k, v in metrics.items():
+        print(f"  {k}: {v:.4f}")
+    
+    print(f"\nOutput: {output_dir}")
+    print("✅ Done!")
 
 
 if __name__ == "__main__":
     main()
-

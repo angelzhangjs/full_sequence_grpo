@@ -30,51 +30,6 @@ from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normal
 from transformers import AutoModel, AutoProcessor
 from transformers.image_utils import load_image
 
-
-sub_model = None
-
-def subject_consistency(video_list, device):
-    global sub_model
-    if sub_model == None:
-        submodules_list = {'repo_or_dir': 'facebookresearch/dino:main', 'source': 'github', 'model': 'dino_vitb16', 'read_frame': None}
-        
-        dino_model = torch.hub.load(**submodules_list).to(device)
-        sub_model = dino_model
-    else:
-        dino_model = sub_model
-    sim = 0.0
-    cnt = 0
-    video_sim = 0
-    images_list = [dino_transform_image_gpu(video_list[i].to(device), 224, device) for i in range(len(video_list))]
-
-    with torch.no_grad():
-        anchor_image = images_list[0].unsqueeze(0)
-        anchor_image = anchor_image.to(device)
-        anchor_features = dino_model(anchor_image)
-        anchor_features = F.normalize(anchor_features, dim=-1, p=2)
-   
-    
-    image_list = images_list[1:]
-    for i in range(len(images_list)):
-        with torch.no_grad():
-            image = images_list[len(images_list)-1].unsqueeze(0)
-            image = image.to(device)
-            image_features = dino_model(image)
-            image_features = F.normalize(image_features, dim=-1, p=2)
-            if i == 0:
-                sim_pre = max(0.0, F.cosine_similarity(anchor_features, image_features).item())
-                cur_sim = sim_pre
-                video_sim += cur_sim
-            else:
-                sim_pre = max(0.0, F.cosine_similarity(former_image_features, image_features).item())
-                sim_fir = max(0.0, F.cosine_similarity(anchor_features, image_features).item())
-                cur_sim = (sim_pre + sim_fir) / 2
-                video_sim += cur_sim
-        former_image_features = image_features
-    sim_per_images = video_sim / (len(images_list) - 1)
-    return sim_per_images
-  
-
 def dino_transform_image_gpu(batch_tensor, n_px, device):
     resized_tensor = resize(batch_tensor, (n_px, n_px), antialias=False)
     
@@ -225,7 +180,7 @@ def load_dino_model(device='cuda'):
     global dino_model
     
     if dino_model is None:
-        print("Loading DINOv2 model...")
+        print("Loading DINOv2 model (first time)...")
         try:
             dino_model = torch.hub.load(
                 'facebookresearch/dinov2',
@@ -253,20 +208,17 @@ def load_clip_model(device='cuda'):
         raise ImportError("CLIP is not installed.")
     
     if clip_model is None:
-        print("Loading CLIP model...")
+        print("Loading CLIP model (first time)...")
         try:
             clip_model, clip_preprocess = clip.load("ViT-B/32", device=device)
             clip_model.eval()
-            # Explicitly convert ALL parameters to float32
+            
+            # Convert to float32
             clip_model = clip_model.to(dtype=torch.float32)
-            # Verify conversion worked
             sample_param_dtype = next(clip_model.parameters()).dtype
-            if sample_param_dtype != torch.float32:
-                print(f"⚠️ CLIP conversion failed, got {sample_param_dtype}")
             print(f"✓ CLIP model loaded (dtype: {sample_param_dtype})")
         except Exception as e:
             print(f"⚠️ CLIP loading error: {e}")
-            # Return None to disable CLIP
             return None, None
     
     return clip_model, clip_preprocess
@@ -644,7 +596,7 @@ def reward_function(
     )
     
     # Logging
-    print(f"\n  Reward Components (CLIP/DINO):")
+    print("\n  Reward Components (CLIP/DINO):")
     print(f"    Text alignment: {result['text_alignment']:.4f} (60%)  [clip={result['clip_alignment']:.4f}, temporal={result['clip_temporal']:.4f}]")
     print(
         f"    Object tracking: {result['object_tracking']:.4f} (40%)  "

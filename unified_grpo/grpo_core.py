@@ -70,10 +70,16 @@ def run_grpo_for_prompt(
     last_std_r = 0.0
 
     for i, t in enumerate(timesteps):
+        print(f"\n{'='*50}")
+        print(f"Step {i+1}/{len(timesteps)} | Timestep: {t:.4f}")
+        print(f"{'='*50}")
+        
         ctx = StepContext(step_index=int(i), t=t)
 
         # Early steps: deterministic-ish step to reach a reasonable state.
         if i < last_start:
+            print(f"  Early step (warmup, no GRPO)")
+
             with torch.no_grad():
                 out = adapter.step(
                     latents=latents,
@@ -90,6 +96,8 @@ def run_grpo_for_prompt(
         # ---------------------------
         # 1) Collect rollouts (no grad)
         # ---------------------------
+        print(f"  Generating {cfg.num_rollouts} rollouts...")
+        
         rollout_actions: List[torch.Tensor] = []
         rollout_next_latents: List[torch.Tensor] = []
         rollout_solver_states: List[Optional[Any]] = []
@@ -97,6 +105,7 @@ def run_grpo_for_prompt(
 
         with torch.no_grad():
             for r in range(int(cfg.num_rollouts)):
+                print(f"    Rollout {r+1}/{cfg.num_rollouts}...", end=" ", flush=True)
                 out_r = adapter.step(
                     latents=latents,
                     ctx=ctx,
@@ -115,16 +124,22 @@ def run_grpo_for_prompt(
                 rollout_next_latents.append(out_r.next_latents.detach())
                 rollout_solver_states.append(out_r.solver_state)
                 rollout_rewards.append(rew.detach().float().to(device))
+                
+                print(f"reward={rew.item():.4f}")
 
         rewards_t = torch.stack(rollout_rewards)  # [K]
         adv = _normalize_advantages(rewards_t, normalize=bool(cfg.normalize_advantages))
 
         last_mean_r = float(rewards_t.mean().item())
         last_std_r = float(rewards_t.std(unbiased=False).item())
+        
+        print(f"  Rewards: mean={last_mean_r:.4f}, std={last_std_r:.4f}")
 
         # ---------------------------
         # 2) Compute GRPO loss (with grad)
         # ---------------------------
+        print("\n  Computing GRPO loss and updating model...")
+        
         opt.zero_grad(set_to_none=True)
 
         out_cur = adapter.step(
@@ -147,11 +162,29 @@ def run_grpo_for_prompt(
         logps_t = torch.stack(logps)  # [K]
 
         loss = -(adv.detach() * logps_t).mean()
-        loss.backward()
+        
+        # Backward with retain_graph=False (default) but ensure clean graph
+        try:
+            loss.backward()
+        except RuntimeError as e:
+            if "second time" in str(e):
+                print("⚠️  Graph reuse issue - clearing and retrying")
+                opt.zero_grad(set_to_none=True)
+                # Recompute without checkpointing issues
+                loss = -(adv.detach() * logps_t).mean()
+                loss.backward()
+            else:
+                raise
+        
         torch.nn.utils.clip_grad_norm_(params, float(cfg.grad_clip))
         opt.step()
 
         last_loss = float(loss.detach().cpu().item())
+        
+        # Clear cache to free memory
+        torch.cuda.empty_cache()
+        
+        print(f"  ✅ Model updated | Loss: {last_loss:.4f}")
 
         # ---------------------------
         # 3) Advance trajectory using best rollout (stabilizes generation)

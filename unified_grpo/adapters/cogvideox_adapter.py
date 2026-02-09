@@ -29,7 +29,6 @@ class CogVideoXAdapter(VideoGRPOAdapter):
     """
 
     pipeline: Any
-
     # Prompt conditioning (precomputed, to avoid calling pipeline.encode_prompt inside the adapter)
     prompt_embeds: torch.Tensor
     negative_prompt_embeds: Optional[torch.Tensor] = None
@@ -106,6 +105,21 @@ class CogVideoXAdapter(VideoGRPOAdapter):
         tr = getattr(self.pipeline, "transformer", None)
         if tr is None:
             raise RuntimeError("CogVideoXAdapter requires pipeline.transformer")
+
+        # Check if LoRA is applied (PEFT model has special attributes)
+        is_lora = hasattr(tr, 'peft_config') or any('lora_' in n for n, _ in tr.named_parameters())
+        
+        if is_lora:
+            # Return only LoRA parameters
+            print("  [CogVideoX Adapter] Using LoRA parameters for training")
+            lora_params = [p for n, p in tr.named_parameters() if 'lora_' in n.lower() and p.requires_grad]
+            if len(lora_params) == 0:
+                # Ensure LoRA params are trainable
+                for n, p in tr.named_parameters():
+                    if 'lora_' in n.lower():
+                        p.requires_grad_(True)
+                        lora_params.append(p)
+            return lora_params
 
         if not self.train_transformer_blocks:
             for p in tr.parameters():
@@ -185,17 +199,22 @@ class CogVideoXAdapter(VideoGRPOAdapter):
         latent_model_input = torch.cat([lat_in] * 2, dim=0) if do_cfg else lat_in
         latent_model_input = self.pipeline.scheduler.scale_model_input(latent_model_input, t)
 
-        # broadcast timestep to batch dim
+        # broadcast timestep to batch dim and ensure correct dtype
         timestep = t.expand(latent_model_input.shape[0])
+        
+        # Ensure timestep is proper dtype (some schedulers use float32)
+        if timestep.dtype != latent_model_input.dtype:
+            timestep = timestep.to(dtype=latent_model_input.dtype)
 
         image_rotary_emb = self._prepare_rotary_emb(latents=lat_in, device=latent_model_input.device)
         attention_kwargs = self.attention_kwargs
 
         def _forward() -> torch.Tensor:
+            # Ensure all inputs have matching dtypes
             out = tr(
-                hidden_states=latent_model_input,
-                encoder_hidden_states=encoder_hidden_states.to(dtype=latent_model_input.dtype, device=latent_model_input.device),
-                timestep=timestep,
+                hidden_states=latent_model_input.to(torch.bfloat16),
+                encoder_hidden_states=encoder_hidden_states.to(torch.bfloat16),
+                timestep=timestep.to(torch.bfloat16),
                 image_rotary_emb=image_rotary_emb,
                 attention_kwargs=attention_kwargs,
                 return_dict=False,

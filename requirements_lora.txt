@@ -1,0 +1,9 @@
+# LoRA dependencies for Unified GRPO Framework
+# Install with: pip install -r requirements_lora.txt
+
+# PEFT (Parameter-Efficient Fine-Tuning) for LoRA
+peft>=0.7.0
+
+# Core dependencies (if not already installed)
+torch>=2.0.0
+transformers>=4.35.0
