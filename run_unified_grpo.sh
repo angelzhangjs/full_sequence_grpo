@@ -30,6 +30,7 @@ Optional:
   --lr FLOAT                Learning rate (default: 1e-4)
   --seed INT                Random seed (default: 2026)
   --train-blocks STR        Comma-separated block indices (default: auto)
+  --unfreeze-percentage NUM Percentage of blocks to unfreeze (0.0-1.0, default: 0.25)
   --output-dir PATH         Output directory (default: ./grpo_output)
   
   LoRA Options (recommended for 40GB GPU!):
@@ -78,6 +79,7 @@ NUM_ROLLOUTS=3
 LR=1e-4
 SEED=2026
 TRAIN_BLOCKS=""
+UNFREEZE_PERCENTAGE=0.20
 OUTPUT_DIR="./grpo_output"
 
 # LoRA defaults
@@ -139,6 +141,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --train-blocks)
             TRAIN_BLOCKS="$2"
+            shift 2
+            ;;
+        --unfreeze-percentage)
+            UNFREEZE_PERCENTAGE="$2"
             shift 2
             ;;
         --output-dir)
@@ -207,6 +213,9 @@ fi
 if [[ -n "$TRAIN_BLOCKS" ]]; then
     CMD="$CMD --train-blocks $TRAIN_BLOCKS"
 fi
+
+# Add unfreeze percentage (always pass, has default)
+CMD="$CMD --unfreeze-percentage $UNFREEZE_PERCENTAGE"
 
 # Add LoRA arguments
 if [[ "$USE_LORA" == "true" ]]; then

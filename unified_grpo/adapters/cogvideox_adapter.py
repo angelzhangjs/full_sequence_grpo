@@ -181,23 +181,27 @@ class CogVideoXAdapter(VideoGRPOAdapter):
         rollout_index: int,
         solver_state=None,
     ) -> StepOutput:
+        
         tr = getattr(self.pipeline, "transformer", None)
         if tr is None:
             raise RuntimeError("CogVideoXAdapter requires pipeline.transformer")
 
         t = ctx.t
 
-        lat_in = latents
+        # CRITICAL: Detach input latents to prevent graph reuse
+        lat_in = latents.detach() if not with_grad else latents
         if (not with_grad) and int(rollout_index) > 0 and float(rollout_noise_scale) > 0:
-            lat_in = latents + float(rollout_noise_scale) * torch.randn_like(latents)
+            lat_in = lat_in + float(rollout_noise_scale) * torch.randn_like(lat_in)
 
         do_cfg = self._do_classifier_free_guidance()
-        encoder_hidden_states = self.prompt_embeds
+        # Detach prompt embeds (they shouldn't need gradients)
+        encoder_hidden_states = self.prompt_embeds.detach()
         if do_cfg:
-            encoder_hidden_states = torch.cat([self.negative_prompt_embeds, self.prompt_embeds], dim=0)
+            encoder_hidden_states = torch.cat([self.negative_prompt_embeds.detach(), self.prompt_embeds.detach()], dim=0)
 
         latent_model_input = torch.cat([lat_in] * 2, dim=0) if do_cfg else lat_in
-        latent_model_input = self.pipeline.scheduler.scale_model_input(latent_model_input, t)
+        # Clone to break any scheduler caching
+        latent_model_input = self.pipeline.scheduler.scale_model_input(latent_model_input.clone(), t)
 
         # broadcast timestep to batch dim and ensure correct dtype
         timestep = t.expand(latent_model_input.shape[0])

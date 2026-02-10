@@ -6,24 +6,42 @@ Supports multiple video models via --model-type argument
 
 import argparse
 import torch
+import sys
 from pathlib import Path
 from typing import Optional
+from datetime import datetime
 
 from unified_grpo.grpo_core import run_grpo_for_prompt, GRPOConfig
 
+# ============================================================================
+# Logging Setup - Redirect stdout to both console and file
+# ============================================================================
+
+class TeeLogger:
+    """Writes to both console and log file simultaneously"""
+    def __init__(self, filename):
+        self.terminal = sys.stdout
+        self.log = open(filename, 'w', buffering=1)  # Line buffered
+    
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+        self.terminal.flush()
+        self.log.flush()
+    
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+    
+    def close(self):
+        self.log.close()
+
 # Import comprehensive reward function from origin_grpo
 import sys
-sys.path.insert(0, str(Path(__file__).parent.parent / "origin_grpo"))
-from reward_functions import comprehensive_grpo_reward
+# Use simplified reward function (CLIP + DINO only, no centering/motion)
+from unified_grpo.reward_simple_clip_dino import comprehensive_grpo_reward
 from diffusers import CogVideoXPipeline
 from unified_grpo.adapters.cogvideox_adapter import CogVideoXAdapter
-# from diffusers import LTXVideoPipeline
-# from unified_grpo.adapters.ltx_adapter import LTXAdapter
-# from diffusers import HunyuanVideoPipeline
-# from unified_grpo.adapters.hunyuan_adapter import HunyuanAdapter
-# from diffusers import OpenSoraPipeline
-# from unified_grpo.adapters.opensora_adapter import OpenSoraAdapter
-# Pre-load models before GRPO:
 import clip
 import torch
 
@@ -403,7 +421,14 @@ Examples:
         "--train-blocks",
         type=str,
         default=None,
-        help="Comma-separated block indices (e.g., '22,23,24,25,26,27,28,29')"
+        help="Comma-separated block indices (e.g., '22,23,24,25,26,27,28,29'). If not specified, uses --unfreeze-percentage."
+    )
+    
+    parser.add_argument(
+        "--unfreeze-percentage",
+        type=float,
+        default=0.25,
+        help="Percentage of blocks to unfreeze from the END (0.0-1.0). Default: 0.25 (last 25%% of blocks). Applied across all models. Ignored if --train-blocks is specified."
     )
     
     # LoRA Configuration (recommended for 40GB GPU!)
@@ -460,13 +485,29 @@ Examples:
         args.model_path = defaults.get(args.model_type, "THUDM/CogVideoX-5b")
     
     if args.train_blocks is None:
-        # Set default training blocks (last 25%)
-        # Adjust based on model
-        if args.model_type == "cogvideox":
-            args.train_blocks = "22,23,24,25,26,27,28,29"  # Last 8 of ~30
-        elif args.model_type == "ltx":
-            args.train_blocks = "21,22,23,24,25,26,27"     # Last 7 of 28
-        # Add more as you implement other adapters
+        # Auto-select blocks based on percentage (unified across all models)
+        print(f"Auto-selecting blocks: unfreezing last {args.unfreeze_percentage:.1%} of transformer blocks")
+        
+        # Model-specific total block counts
+        model_total_blocks = {
+            "cogvideox": 30,
+            "ltx": 28,
+            "hunyuan": 32,
+            "wan": 24,
+            "opensora": 28,
+        }
+        
+        total_blocks = model_total_blocks.get(args.model_type, 28)
+        num_blocks_to_train = max(1, int(total_blocks * args.unfreeze_percentage))
+        start_block = total_blocks - num_blocks_to_train
+        
+        # Generate block indices
+        blocks = list(range(start_block, total_blocks))
+        args.train_blocks = ",".join(str(b) for b in blocks)
+        
+        print(f"  Model: {args.model_type} ({total_blocks} total blocks)")
+        print(f"  Unfreezing: {num_blocks_to_train} blocks (last {args.unfreeze_percentage:.0%})")
+        print(f"  Block indices: {args.train_blocks}\n")
     
     # ========================================================================
     # Display Configuration
@@ -517,32 +558,72 @@ Examples:
     print("="*70)
     
     output_dir = Path(args.output_dir) / args.model_type
+    output_dir.mkdir(parents=True, exist_ok=True)
     
-    print("Using comprehensive reward function (CLIP + DINO + centering + motion)")
+    # Setup logging to file
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = output_dir / f"training_log_{timestamp}.txt"
     
-    metrics = run_grpo_for_prompt(
-        adapter=adapter,
-        prompt=args.prompt,
-        reward_fn=reward_function_wrapper,
-        seed=args.seed,
-        out_dir=output_dir,
-        cfg=grpo_config,
-    )
+    print(f"Training log: {log_file}")
+    print(f"Output dir: {output_dir}")
+    print(f"Prompt: {args.prompt}")
     
-    # ========================================================================
-    # Results
-    # ========================================================================
+    # Redirect stdout to both console and log file
+    logger = TeeLogger(str(log_file))
+    sys.stdout = logger
+    sys.stderr = logger  # Also capture errors
     
-    print("\n" + "="*70)
-    print("TRAINING COMPLETE!")
     print("="*70)
-    print(f"Model: {args.model_type}")
-    print("Metrics:")
-    for k, v in metrics.items():
-        print(f"  {k}: {v:.4f}")
+    print(f"UNIFIED GRPO TRAINING - {args.model_type.upper()}")
+    print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("="*70)
+    print(f"\nPrompt: {args.prompt}")
+    print(f"Model: {args.model_type} ({args.model_path})")
+    print(f"Resolution: {args.width}×{args.height}, {args.num_frames} frames")
+    print(f"GRPO: {args.num_grpo_steps} steps, {args.num_rollouts} rollouts")
+    print(f"Learning rate: {args.lr}")
+    print(f"Seed: {args.seed}")
+    if args.use_lora:
+        print(f"LoRA: rank={args.lora_rank}, alpha={args.lora_alpha}")
+    else:
+        print(f"Traditional unfreezing: blocks {args.train_blocks}")
+    print()
     
-    print(f"\nOutput: {output_dir}")
-    print("✅ Done!")
+    print("Using comprehensive reward function (CLIP + DINO + centering + motion)\n")
+    
+    try:
+        metrics = run_grpo_for_prompt(
+            adapter=adapter,
+            prompt=args.prompt,
+            reward_fn=reward_function_wrapper,
+            seed=args.seed,
+            out_dir=output_dir,
+            cfg=grpo_config,
+        )
+        
+        # ========================================================================
+        # Results
+        # ========================================================================
+        
+        print("\n" + "="*70)
+        print("TRAINING COMPLETE!")
+        print("="*70)
+        print(f"Model: {args.model_type}")
+        print("Metrics:")
+        for k, v in metrics.items():
+            print(f"  {k}: {v:.4f}")
+        
+        print(f"\nOutput: {output_dir}")
+        print("✅ Done!")
+        
+    finally:
+        # Close logger and restore stdout
+        if 'logger' in locals():
+            logger.close()
+            sys.stdout = logger.terminal
+            sys.stderr = sys.__stderr__
+        
+        print(f"\n✅ Training complete! Log saved to: {log_file}")
 
 
 if __name__ == "__main__":

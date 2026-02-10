@@ -25,3 +25,6 @@
 [submodule "HunyuanVideo"]
 	path = HunyuanVideo
 	url = https://github.com/Tencent-Hunyuan/HunyuanVideo.git
+[submodule "full_sequence_grpo"]
+	path = full_sequence_grpo
+	url = git@github.com:angelzhangjs/full_sequence_grpo.git

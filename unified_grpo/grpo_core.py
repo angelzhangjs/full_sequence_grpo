@@ -140,64 +140,118 @@ def run_grpo_for_prompt(
         # ---------------------------
         print("\n  Computing GRPO loss and updating model...")
         
+        # CRITICAL: Clear all gradients and free old graphs
         opt.zero_grad(set_to_none=True)
-
+        torch.cuda.empty_cache()
+        
+        # NUCLEAR OPTION: Recreate latents from scratch to ensure NO graph
+        with torch.no_grad():
+            # Copy data but create completely new tensor
+            fresh_latents = torch.zeros_like(latents)
+            fresh_latents.copy_(latents)
+        
+        # Forward pass with gradients (fresh graph)
         out_cur = adapter.step(
-            latents=latents,
+            latents=fresh_latents,
             ctx=ctx,
             with_grad=True,
             rollout_noise_scale=0.0,
             rollout_index=0,
-            solver_state=solver_state,
+            solver_state=None,
         )
-        action_cur = out_cur.action
+        action_cur = out_cur.action.clone()  # Clone action too
 
         # Gaussian-policy surrogate log-prob: higher if action_cur is close to sampled rollout action.
         # logp(a_r | pi_theta) ~ -||a_r - a_theta||^2 / (2*sigma^2)
         sigma2 = float(cfg.logprob_sigma) ** 2
         logps: List[torch.Tensor] = []
         for a_r in rollout_actions:
-            mse = torch.mean((action_cur - a_r) ** 2)
+            # Detach rollout actions (from previous graphs)
+            mse = torch.mean((action_cur - a_r.detach()) ** 2)
             logps.append(-mse / (2.0 * sigma2))
-        logps_t = torch.stack(logps)  # [K]
-
-        loss = -(adv.detach() * logps_t).mean()
+        logps_t = torch.stack(logps)  # [K] - only connected to action_cur
         
-        # Backward with retain_graph=False (default) but ensure clean graph
-        try:
-            loss.backward()
-        except RuntimeError as e:
-            if "second time" in str(e):
-                print("⚠️  Graph reuse issue - clearing and retrying")
-                opt.zero_grad(set_to_none=True)
-                # Recompute without checkpointing issues
-                loss = -(adv.detach() * logps_t).mean()
-                loss.backward()
-            else:
-                raise
+        # Loss with detached advantages (from rewards, no grad needed)
+        loss = -(adv.detach() * logps_t).mean()  # logps_t keeps action_cur gradients!
+        
+        # Backward pass (retain_graph=False to free memory immediately!)
+        print(f"  Backward pass...")
+        loss.backward(retain_graph=False)
         
         torch.nn.utils.clip_grad_norm_(params, float(cfg.grad_clip))
         opt.step()
 
         last_loss = float(loss.detach().cpu().item())
         
-        # Clear cache to free memory
-        torch.cuda.empty_cache()
-        
-        print(f"  ✅ Model updated | Loss: {last_loss:.4f}")
-
         # ---------------------------
-        # 3) Advance trajectory using best rollout (stabilizes generation)
+        # 3) Advance trajectory using best rollout BEFORE deleting anything!
         # ---------------------------
         best = int(torch.argmax(rewards_t).item())
-        latents = rollout_next_latents[best].detach()
+        # CRITICAL: Detach AND clone to break ALL graph connections!
+        latents = rollout_next_latents[best].detach().clone()
         solver_state = rollout_solver_states[best]
+        
+        # NOW delete tensors (after using them!)
+        del loss, out_cur, action_cur, logps_t, logps
+        del rollout_actions, rollout_next_latents, rollout_solver_states, rollout_rewards
+        del rewards_t, adv
+        
+        # Aggressive memory clearing
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+        
+        print(f"  ✅ Model updated | Loss: {last_loss:.4f}")
+        print(f"  GPU free: {torch.cuda.mem_get_info()[0] / 1024**3:.1f} GB")
 
-    # Optionally dump the final decoded video for debugging / eval.
+    # Save final video as MP4 (watchable format)
     if out_dir is not None:
         out_dir.mkdir(parents=True, exist_ok=True)
         with torch.no_grad():
             final_video = adapter.decode_for_reward(latents_or_x0=latents, x0_is_patchified=True).detach().cpu()
+        
+        # Convert tensor to MP4 video
+        import imageio
+        import numpy as np
+        
+        # Handle tensor format
+        video_np = final_video.float().numpy()
+        if len(video_np.shape) == 5:  # [B, T, C, H, W]
+            video_np = video_np[0]
+        if video_np.shape[1] == 3:  # [T, 3, H, W]
+            video_np = video_np.transpose(0, 2, 3, 1)  # → [T, H, W, 3]
+        
+        # Debug normalization
+        print(f"  [DEBUG] Video range before norm: [{video_np.min():.3f}, {video_np.max():.3f}]")
+        
+        # Normalize to [0, 1] first
+        if video_np.max() > 10:  # Likely unnormalized (0-255 range)
+            print("  Converting from [0, 255] → [0, 1]")
+            video_np = video_np / 255.0
+        elif video_np.min() < -0.5:  # Likely [-1, 1] range
+            print("  Converting from [-1, 1] → [0, 1]")
+            video_np = (video_np + 1) / 2
+        elif video_np.max() <= 1.1:  # Already [0, 1]
+            print("  Already in [0, 1] range")
+            pass
+        else:  # Unknown range, normalize
+            print(f"  Unknown range, normalizing: [{video_np.min()}, {video_np.max()}]")
+            video_np = (video_np - video_np.min()) / (video_np.max() - video_np.min() + 1e-8)
+        
+        # Convert to uint8 [0, 255]
+        video_np = (video_np * 255).clip(0, 255).astype(np.uint8)
+        print(f"  [DEBUG] Video range after norm: [{video_np.min()}, {video_np.max()}]")
+        
+        # Save as MP4
+        mp4_path = out_dir / "final_grpo.mp4"
+        writer = imageio.get_writer(str(mp4_path), fps=8, codec='libx264', quality=8)
+        for frame in video_np:
+            writer.append_data(frame)
+        writer.close()
+        
+        print(f"\n✅ Final video saved: {mp4_path}")
+        print(f"   Frames: {len(video_np)}, Duration: {len(video_np)/8:.2f}s")
+        
+        # Also save tensor for analysis
         torch.save(final_video, out_dir / "final_video.pt")
 
     return {

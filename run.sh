@@ -1,66 +1,112 @@
 #!/bin/bash
-# Quick run script - just: bash run.sh
+# Complete pipeline: Baseline + GRPO Training
+# Usage: bash run.sh
 
-# Go to script directory
+set -e  # Exit on error
+
 cd "$(dirname "$0")"
 
-# Add to PYTHONPATH so imports work
 export PYTHONPATH="${PWD}:${PYTHONPATH}"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-# ==============================================================================
-# Training Mode Selection (Choose ONE)
-# ==============================================================================
-# 
-# OPTION A: LoRA on ALL Blocks (RECOMMENDED for 40GB GPU!)
-#   - Memory: ~30GB (fits in 40GB!)
-#   - Trains: Tiny adapters in ALL layers (~10M params, 0.5%)
-#   - Speed: Fast
-#   - Quality: Excellent ⭐⭐⭐
-#   Flags: --use-lora --lora-rank 16 --lora-alpha 32
-#
-# OPTION B: LoRA on SPECIFIC Blocks (NEW! Ultra Memory-Efficient!)
-#   - Memory: ~26GB (even safer for 40GB!)
-#   - Trains: Tiny adapters in SELECTED layers (~350K params, 0.02%)
-#   - Speed: Fastest
-#   - Quality: Great ⭐⭐
-#   Flags: --use-lora --lora-rank 16 --lora-alpha 32 --lora-blocks "29"
-#
-# OPTION C: Unfrozen Blocks (Needs 48GB+ VRAM)
-#   - Memory: ~45GB (OOM on 40GB!)
-#   - Trains: Entire transformer blocks (~250M params)
-#   - Speed: Slower
-#   - Quality: Best ⭐⭐⭐
-#   Flags: --train-blocks "22,23,24,25,26,27,28,29"
-#
-# TIP: Option B (LoRA on block 29) is perfect for prototyping!
-# ==============================================================================
+echo "======================================================================"
+echo "FULL PIPELINE: BASELINE + GRPO TRAINING"
+echo "======================================================================"
+echo ""
 
-# Run unified GRPO
+# Configuration
+PROMPT="A ball bouncing up a staircase, hitting each step sequentially"
+OUTPUT_DIR="./cogvideox_comparison_$(date +%Y%m%d_%H%M%S)"
+
+echo "Prompt: $PROMPT"
+echo "Output: $OUTPUT_DIR"
+echo ""
+
+# ======================================================================
+# STEP 1: Generate Baseline (Pretrained Model)
+# ======================================================================
+echo "======================================================================"
+echo "STEP 1/2: Generating Baseline Video (Pretrained CogVideoX-2B)"
+echo "======================================================================"
+echo ""
+
+mkdir -p "$OUTPUT_DIR/baseline"
+
+cd CogVideo
+
+python inference/cli_demo.py \
+    --prompt "$PROMPT" \
+    --model_path THUDM/CogVideoX-2b \
+    --generate_type "t2v" \
+    --num_frames 32 \
+    --fps 8 \
+    --guidance_scale 7.5 \
+    --num_inference_steps 50 \
+    --seed 42 \
+    --output_path "../$OUTPUT_DIR/baseline/baseline.mp4"
+
+cd ..
+
+if [ $? -eq 0 ]; then
+    echo ""
+    echo "✅ Baseline generation complete!"
+    echo ""
+else
+    echo ""
+    echo "❌ Baseline failed!"
+    exit 1
+fi
+
+# ======================================================================
+# STEP 2: Run GRPO Training
+# ======================================================================
+echo "======================================================================"
+echo "STEP 2/2: Running GRPO Training"
+echo "======================================================================"
+echo ""
+
 ./run_unified_grpo.sh \
     --model-type cogvideox \
     --model-path THUDM/CogVideoX-2b \
-    --prompt "A ball bouncing up a staircase, hitting each step sequentially" \
+    --prompt "$PROMPT" \
     --height 480 \
     --width 720 \
-    --num-frames 49 \
+    --num-frames 32 \
     --guidance-scale 7.5 \
     --num-inference-steps 50 \
-    --num-grpo-steps 5 \
-    --num-rollouts 1 \
+    --num-grpo-steps 10 \
+    --num-rollouts 2 \
     --lr 1e-4 \
     --seed 42 \
+    --unfreeze-percentage 0.20 \
     --use-lora \
-    --lora-rank 16 \
-    --lora-alpha 32 \
-    --lora-blocks "29" \
-    --output-dir ./cogvideox_physics_grpo_lora_output
+    --lora-rank 4 \
+    --lora-alpha 8 \
+    --output-dir "$OUTPUT_DIR/grpo"
 
-# ===========================================================================
-# Training Mode Examples:
-# ===========================================================================
-# ✅ LoRA on ALL blocks: --use-lora --lora-rank 16 --lora-alpha 32 (no --lora-blocks)
-# ✅ LoRA on block 29 ONLY (CURRENT): --lora-blocks "29"
-# ✅ LoRA on last 3 blocks: --lora-blocks "27,28,29"
-# ✅ Unfrozen blocks (48GB+): Remove LoRA flags, add --train-blocks "22,23,24,25,26,27,28,29"
-# ===========================================================================
+if [ $? -eq 0 ]; then
+    echo ""
+    echo "✅ GRPO training complete!"
+    echo ""
+else
+    echo ""
+    echo "❌ GRPO training failed!"
+    exit 1
+fi
+
+# ======================================================================
+# Summary
+# ======================================================================
+echo "======================================================================"
+echo "PIPELINE COMPLETE! 🎉"
+echo "======================================================================"
+echo ""
+echo "📂 Output: $OUTPUT_DIR/"
+echo ""
+echo "Files:"
+echo "  📹 Baseline (pretrained):  $OUTPUT_DIR/baseline/*.mp4"
+echo "  📹 Trained (GRPO+LoRA):   $OUTPUT_DIR/grpo/cogvideox/final_grpo.mp4"
+echo "  📄 Training log:          $OUTPUT_DIR/grpo/cogvideox/training_log_*.txt"
+echo ""
+echo "Compare baseline vs trained to see GRPO improvement!"
+echo "======================================================================"

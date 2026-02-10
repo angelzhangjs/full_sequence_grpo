@@ -526,7 +526,7 @@ def comprehensive_grpo_reward(
     
     # Soft centering + minimum-motion gate (prevents "static centered subject" loophole)
     scores['centering'] = centering_reward(video)
-    scores['motion_gate'] = motion_gate(video)
+    #scores['motion_gate'] = motion_gate(video)
     
     # ------------------------------------------------------------------------
     # CLIP + DINO ONLY:
@@ -538,9 +538,9 @@ def comprehensive_grpo_reward(
 
     object_tracking_raw = 0.5 * scores['dino_consistency'] + 0.5 * scores['dino_presence']
     # Gate DINO reward toward neutral (0.5) when motion is too small.
-    object_tracking_gated = 0.5 + scores['motion_gate'] * (object_tracking_raw - 0.5)
+    #object_tracking_gated = 0.5 + scores['motion_gate'] * (object_tracking_raw - 0.5)
     # Mix in a small centering term (mostly "don't leave the frame").
-    object_tracking = 0.85 * object_tracking_gated + 0.15 * scores['centering']
+    #object_tracking = 0.85 * object_tracking_gated + 0.15 * scores['centering']
 
     scores['text_alignment'] = float(np.clip(text_alignment, 0.0, 1.0))
     scores['object_tracking'] = float(np.clip(object_tracking, 0.0, 1.0))
