@@ -206,6 +206,7 @@ class OpenSoraAdapter(VideoGRPOAdapter):
         rollout_index: int,
         solver_state=None,
     ) -> StepOutput:
+        
         if self._timesteps is None:
             raise RuntimeError("OpenSoraAdapter.step() called before get_timesteps(); schedule is not initialized.")
         if self._static_inp is None:
