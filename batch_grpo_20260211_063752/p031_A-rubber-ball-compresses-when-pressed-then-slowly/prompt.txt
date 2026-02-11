@@ -1,0 +1,1 @@
+A rubber ball compresses when pressed, then slowly returns to its original shape.

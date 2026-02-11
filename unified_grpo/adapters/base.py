@@ -19,6 +19,7 @@ class StepOutput:
     action: torch.Tensor  # model output driving the solver (e.g., noise_pred / velocity)
     x0_latents: Optional[torch.Tensor] = None  # optional x0 estimate (if available)
     solver_state: Optional[Any] = None  # optional per-solver state for multistep schedulers
+    
 class VideoGRPOAdapter(Protocol):
     """
     Minimal interface needed by the unified GRPO core.

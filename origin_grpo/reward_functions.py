@@ -30,15 +30,6 @@ from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normal
 from transformers import AutoModel, AutoProcessor
 from transformers.image_utils import load_image
 
-def dino_transform_image_gpu(batch_tensor, n_px, device):
-    resized_tensor = resize(batch_tensor, (n_px, n_px), antialias=False)
-    
-    mean = torch.tensor([0.485, 0.456, 0.406], device=device) 
-    std = torch.tensor([0.229, 0.224, 0.225], device=device)   
-
-    normalized_tensor = (resized_tensor - mean[:, None, None]) / std[:, None, None]
-
-    return normalized_tensor
 
 # ============================================================================
 # Lightweight helpers (no physics models; just basic pixel heuristics)

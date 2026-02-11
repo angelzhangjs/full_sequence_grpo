@@ -1,0 +1,1 @@
+A ball rolls across uneven ground, changing speed slightly as it passes small bumps. 

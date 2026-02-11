@@ -52,9 +52,10 @@ dino_model = torch.hub.load('facebookresearch/dinov2:main', 'dinov2_vitb14')
 
 def reward_function_wrapper(video: torch.Tensor, prompt: str) -> torch.Tensor:
     """
-    Wrapper for comprehensive GRPO reward
-    
-    Uses CLIP + DINO + centering + motion from origin_grpo/reward_functions.py
+    Wrapper for GRPO reward.
+
+    NOTE: This runner currently uses the simplified reward in
+    `unified_grpo/reward_simple_clip_dino.py` (CLIP + DINO consistency).
     """
     # Debug video properties
     print("\n  [DEBUG] Video properties:")
@@ -98,6 +99,12 @@ def create_cogvideox_adapter(args):
     pipeline.transformer = pipeline.transformer.to(torch.bfloat16)
     pipeline.vae = pipeline.vae.to(torch.bfloat16)
     pipeline.text_encoder = pipeline.text_encoder.to(torch.bfloat16)
+
+    # Important for stable sampling/training: disable dropout-like noise.
+    # `.eval()` does NOT disable gradients; it only changes module behavior (e.g. dropout/bn).
+    pipeline.transformer.eval()
+    pipeline.vae.eval()
+    pipeline.text_encoder.eval()
     
     # Apply LoRA if requested (recommended for 40GB GPU!)
     if args.use_lora:
@@ -269,39 +276,66 @@ def create_wan_adapter(args):
 
 def create_opensora_adapter(args):
     """Create Open-Sora adapter"""
-    
-    from diffusers import OpenSoraPipeline
+    import sys
+    from pathlib import Path
+
+    # Add Open-Sora to path
+    opensora_path = Path(__file__).parent.parent.parent / "Open-Sora"
+    sys.path.insert(0, str(opensora_path))
+
     from unified_grpo.adapters.opensora_adapter import OpenSoraAdapter
-    
-    print(f"Loading Open-Sora pipeline: {args.model_path}")
-    pipeline = OpenSoraPipeline.from_pretrained(
-        args.model_path,
-        torch_dtype=torch.float16,
-    ).to("cuda")
-    
-    pipeline.vae.enable_slicing()
-    
-    # Encode prompt
-    prompt_embeds = pipeline.encode_prompt(
-        prompt=args.prompt,
-        device="cuda",
+
+    try:
+        from mmengine.config import Config
+        from opensora.utils.sampling import prepare_models
+        from opensora.utils.misc import to_torch_dtype
+    except Exception as e:
+        raise RuntimeError(
+            "Open-Sora dependencies not available. "
+            "Install Open-Sora requirements and ensure `Open-Sora/` is importable."
+        ) from e
+
+    if not args.model_path:
+        raise ValueError(
+            "For --model-type opensora, please pass --model-path as an Open-Sora config file, "
+            "e.g. Open-Sora/configs/diffusion/inference/256px.py"
+        )
+
+    cfg = Config.fromfile(args.model_path)
+    device = "cuda"
+    dtype = to_torch_dtype(getattr(cfg, "dtype", "bf16"))
+
+    print(f"Loading Open-Sora models from config: {args.model_path}")
+    model, model_ae, model_t5, model_clip, optional_models = prepare_models(
+        cfg, device, dtype, offload_model=bool(getattr(cfg, "offload_model", False))
     )
-    
+
+    class OpenSoraPipelineWrapper:
+        def __init__(self):
+            self.model = model
+            self.ae = model_ae
+            self.t5 = model_t5
+            self.clip = model_clip
+            self.optional_models = optional_models
+            self.device = torch.device(device)
+            self.dtype = dtype
+
+    pipeline = OpenSoraPipelineWrapper()
+
     train_blocks = None
     if args.train_blocks:
         train_blocks = [int(x.strip()) for x in args.train_blocks.split(",")]
-    
+
     adapter = OpenSoraAdapter(
         pipeline=pipeline,
-        prompt_embeds=prompt_embeds,
-        negative_prompt_embeds=None,
-        guidance_scale=args.guidance_scale,
-        height=args.height,
-        width=args.width,
-        num_frames=args.num_frames,
+        prompt=args.prompt,
+        negative_prompt="",
+        guidance_scale=float(args.guidance_scale),
+        height=int(args.height),
+        width=int(args.width),
+        num_frames=int(args.num_frames),
         train_transformer_blocks=train_blocks,
     )
-    
     return adapter
 
 
@@ -589,7 +623,7 @@ Examples:
         print(f"Traditional unfreezing: blocks {args.train_blocks}")
     print()
     
-    print("Using comprehensive reward function (CLIP + DINO + centering + motion)\n")
+    print("Using reward function: CLIP alignment + DINO consistency (anti-collapse terms enabled in reward)\n")
     
     try:
         metrics = run_grpo_for_prompt(

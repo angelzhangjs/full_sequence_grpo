@@ -1,0 +1,1 @@
+A soft cube compresses when pushed, resisting the force gradually.

@@ -1,0 +1,1 @@
+A cube drops from above and hits the floor, moving straight down with continuous acceleration and a clean vertical path. 

@@ -1,0 +1,1 @@
+A soft ball compresses on contact, then expands back.

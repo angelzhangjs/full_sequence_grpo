@@ -1,0 +1,1 @@
+A soft block compresses and holds its shape while force is applied. 

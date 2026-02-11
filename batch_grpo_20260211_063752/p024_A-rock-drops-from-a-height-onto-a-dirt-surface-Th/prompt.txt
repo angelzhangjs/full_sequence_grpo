@@ -1,0 +1,1 @@
+A rock drops from a height onto a dirt surface. The motion is direct, with speed increasing naturally as it falls. 

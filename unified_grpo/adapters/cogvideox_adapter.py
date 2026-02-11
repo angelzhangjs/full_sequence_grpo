@@ -27,7 +27,6 @@ class CogVideoXAdapter(VideoGRPOAdapter):
       (see `CogVideo/inference/ddim_inversion.py` in this repo).
     - `decode_for_reward` returns pixel video shaped [B, F, C, H, W] in [0, 1].
     """
-
     pipeline: Any
     # Prompt conditioning (precomputed, to avoid calling pipeline.encode_prompt inside the adapter)
     prompt_embeds: torch.Tensor

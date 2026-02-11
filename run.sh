@@ -15,7 +15,8 @@ echo "======================================================================"
 echo ""
 
 # Configuration
-PROMPT="A ball bouncing up a staircase, hitting each step sequentially"
+# Using physics-based prompt from action_prompts.txt (line 21 - dropping ball)
+PROMPT="A small rock falls into shallow water; it drops, splashes, and then rests."
 OUTPUT_DIR="./cogvideox_comparison_$(date +%Y%m%d_%H%M%S)"
 
 echo "Prompt: $PROMPT"
