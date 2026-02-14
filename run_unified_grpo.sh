@@ -81,6 +81,9 @@ SEED=2026
 TRAIN_BLOCKS=""
 UNFREEZE_PERCENTAGE=0.20
 OUTPUT_DIR="./grpo_output"
+AMP_MODE="none"
+GRADIENT_CHECKPOINTING=""
+USE_FSDP=""
 
 # LoRA defaults
 USE_LORA=""
@@ -151,6 +154,18 @@ while [[ $# -gt 0 ]]; do
             OUTPUT_DIR="$2"
             shift 2
             ;;
+        --amp)
+            AMP_MODE="$2"
+            shift 2
+            ;;
+        --gradient-checkpointing)
+            GRADIENT_CHECKPOINTING="true"
+            shift 1
+            ;;
+        --fsdp)
+            USE_FSDP="true"
+            shift 1
+            ;;
         --use-lora)
             USE_LORA="true"
             shift 1
@@ -203,7 +218,8 @@ CMD="python unified_grpo/run_unified_grpo.py \
     --num-rollouts $NUM_ROLLOUTS \
     --lr $LR \
     --seed $SEED \
-    --output-dir $OUTPUT_DIR"
+    --output-dir $OUTPUT_DIR \
+    --amp $AMP_MODE"
 
 # Add optional arguments
 if [[ -n "$MODEL_PATH" ]]; then
@@ -224,6 +240,14 @@ fi
 
 if [[ -n "$LORA_BLOCKS" ]]; then
     CMD="$CMD --lora-blocks $LORA_BLOCKS"
+fi
+
+if [[ "$GRADIENT_CHECKPOINTING" == "true" ]]; then
+    CMD="$CMD --gradient-checkpointing"
+fi
+
+if [[ "$USE_FSDP" == "true" ]]; then
+    CMD="$CMD --fsdp"
 fi
 
 # ============================================================================

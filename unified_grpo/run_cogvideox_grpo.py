@@ -125,7 +125,7 @@ def main():
     # Parse train blocks
     train_blocks = [int(x.strip()) for x in args.train_blocks.split(",")]
     
-    print(f"Creating adapter...")
+    print("Creating adapter...")
     print(f"  Training blocks: {train_blocks}")
     
     adapter = CogVideoXAdapter(
@@ -139,7 +139,7 @@ def main():
         train_transformer_blocks=train_blocks,
     )
     
-    print(f"✅ Adapter created")
+    print("✅ Adapter created")
     print(f"  Trainable parameters: {len(adapter.trainable_parameters())}\n")
     
     # ========================================================================

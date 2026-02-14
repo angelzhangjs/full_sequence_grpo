@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import torch
+from torch.cuda.amp import GradScaler
 
 from unified_grpo.adapters.base import StepContext, VideoGRPOAdapter
 
@@ -20,6 +21,7 @@ class GRPOConfig:
     grad_clip: float = 1.0
     normalize_advantages: bool = True
     logprob_sigma: float = 1.0  # Gaussian-policy surrogate scale for action logp
+    amp_dtype: Optional[torch.dtype] = None  # e.g., torch.bfloat16 or torch.float16
 
 
 def _normalize_advantages(rewards: torch.Tensor, *, normalize: bool) -> torch.Tensor:
@@ -65,6 +67,9 @@ def run_grpo_for_prompt(
     latents = adapter.prepare_latents(seed=int(seed)).to(device)
     solver_state: Optional[Any] = None
 
+    amp_enabled = cfg.amp_dtype is not None
+    scaler = GradScaler(enabled=amp_enabled and cfg.amp_dtype == torch.float16)
+
     last_loss = 0.0
     last_mean_r = 0.0
     last_std_r = 0.0
@@ -78,7 +83,7 @@ def run_grpo_for_prompt(
 
         # Early steps: deterministic-ish step to reach a reasonable state.
         if i < last_start:
-            print(f"  Early step (warmup, no GRPO)")
+            print("  Early step (warmup, no GRPO)")
 
             with torch.no_grad():
                 out = adapter.step(
@@ -106,14 +111,15 @@ def run_grpo_for_prompt(
         with torch.no_grad():
             for r in range(int(cfg.num_rollouts)):
                 print(f"    Rollout {r+1}/{cfg.num_rollouts}...", end=" ", flush=True)
-                out_r = adapter.step(
-                    latents=latents,
-                    ctx=ctx,
-                    with_grad=False,
-                    rollout_noise_scale=float(cfg.rollout_noise_scale),
-                    rollout_index=int(r),
-                    solver_state=solver_state,
-                )
+                with torch.amp.autocast("cuda", enabled=amp_enabled, dtype=cfg.amp_dtype):
+                    out_r = adapter.step(
+                        latents=latents,
+                        ctx=ctx,
+                        with_grad=False,
+                        rollout_noise_scale=float(cfg.rollout_noise_scale),
+                        rollout_index=int(r),
+                        solver_state=solver_state,
+                    )
 
                 # Prefer x0_latents if provided; otherwise reward on next_latents decode.
                 to_decode = out_r.x0_latents if out_r.x0_latents is not None else out_r.next_latents
@@ -151,14 +157,15 @@ def run_grpo_for_prompt(
             fresh_latents.copy_(latents)
         
         # Forward pass with gradients (fresh graph)
-        out_cur = adapter.step(
-            latents=fresh_latents,
-            ctx=ctx,
-            with_grad=True,
-            rollout_noise_scale=0.0,
-            rollout_index=0,
-            solver_state=None,
-        )
+        with torch.amp.autocast("cuda", enabled=amp_enabled, dtype=cfg.amp_dtype):
+            out_cur = adapter.step(
+                latents=fresh_latents,
+                ctx=ctx,
+                with_grad=True,
+                rollout_noise_scale=0.0,
+                rollout_index=0,
+                solver_state=None,
+            )
         action_cur = out_cur.action.clone()  # Clone action too
 
         # Gaussian-policy surrogate log-prob: higher if action_cur is close to sampled rollout action.
@@ -176,10 +183,16 @@ def run_grpo_for_prompt(
         
         # Backward pass (retain_graph=False to free memory immediately!)
         print(f"  Backward pass...")
-        loss.backward(retain_graph=False)
-        
-        torch.nn.utils.clip_grad_norm_(params, float(cfg.grad_clip))
-        opt.step()
+        if scaler.is_enabled():
+            scaler.scale(loss).backward(retain_graph=False)
+            scaler.unscale_(opt)
+            torch.nn.utils.clip_grad_norm_(params, float(cfg.grad_clip))
+            scaler.step(opt)
+            scaler.update()
+        else:
+            loss.backward(retain_graph=False)
+            torch.nn.utils.clip_grad_norm_(params, float(cfg.grad_clip))
+            opt.step()
 
         last_loss = float(loss.detach().cpu().item())
         

@@ -5,13 +5,26 @@ Supports multiple video models via --model-type argument
 """
 
 import argparse
-import torch
+import os
 import sys
-from pathlib import Path
-from typing import Optional
 from datetime import datetime
+from pathlib import Path
+from functools import partial
 
-from unified_grpo.grpo_core import run_grpo_for_prompt, GRPOConfig
+import clip
+import torch
+import torch.distributed as dist
+from diffusers import CogVideoXPipeline
+from torch.distributed.fsdp import (
+    FullyShardedDataParallel as FSDP,
+    MixedPrecision,
+    ShardingStrategy,
+)
+from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
+
+from unified_grpo.adapters.cogvideox_adapter import CogVideoXAdapter
+from unified_grpo.grpo_core import GRPOConfig, run_grpo_for_prompt
+from unified_grpo.reward_simple_clip_dino import comprehensive_grpo_reward
 
 # ============================================================================
 # Logging Setup - Redirect stdout to both console and file
@@ -36,18 +49,99 @@ class TeeLogger:
     def close(self):
         self.log.close()
 
-# Import comprehensive reward function from origin_grpo
-import sys
-# Use simplified reward function (CLIP + DINO only, no centering/motion)
-from unified_grpo.reward_simple_clip_dino import comprehensive_grpo_reward
-from diffusers import CogVideoXPipeline
-from unified_grpo.adapters.cogvideox_adapter import CogVideoXAdapter
-import clip
-import torch
-
 # Load once:
 clip_model, _ = clip.load("ViT-B/32", device="cuda")
 dino_model = torch.hub.load('facebookresearch/dinov2:main', 'dinov2_vitb14')
+
+
+def maybe_enable_gradient_checkpointing(module, label: str = "module"):
+    """
+    Best-effort gradient checkpointing toggle.
+    Tries the common Diffusers/HF API, otherwise sets a flag if present.
+    """
+    if module is None:
+        print(f"⚠️  Gradient checkpointing skipped: {label} is None")
+        return
+    fn = getattr(module, "enable_gradient_checkpointing", None)
+    if callable(fn):
+        fn()
+        print(f"✅ Gradient checkpointing enabled on {label}")
+        return
+    if hasattr(module, "gradient_checkpointing"):
+        setattr(module, "gradient_checkpointing", True)
+        print(f"✅ Gradient checkpointing flag set on {label}")
+    else:
+        print(f"⚠️  Gradient checkpointing not supported on {label}")
+
+
+def maybe_wrap_fsdp(module, args, label: str = "module"):
+    """
+    Wrap the given module with FSDP full-shard if requested and dist is initialized.
+    Returns the (possibly wrapped) module.
+    """
+    if not getattr(args, "fsdp", False):
+        return module
+
+    if not dist.is_available():
+        print(f"⚠️  FSDP requested but torch.distributed not available; skipping for {label}")
+        return module
+
+    if not dist.is_initialized():
+        # Attempt best-effort init if environment is set (torchrun sets these).
+        master_addr = os.environ.get("MASTER_ADDR")
+        master_port = os.environ.get("MASTER_PORT")
+        world_size = os.environ.get("WORLD_SIZE")
+        rank = os.environ.get("RANK")
+        if all([master_addr, master_port, world_size, rank]):
+            try:
+                dist.init_process_group(backend="nccl")
+            except Exception as e:
+                print(f"⚠️  FSDP requested but failed to init process group: {e}")
+                return module
+        else:
+            print("⚠️  FSDP requested but process group not initialized. Launch with torchrun.")
+            return module
+
+    # Ensure we use the local rank device
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    torch.cuda.set_device(local_rank)
+
+    # Auto-wrap transformer blocks if present
+    layer_cls = None
+    blk = getattr(module, "transformer_blocks", None)
+    if blk and len(blk) > 0:
+        layer_cls = {type(blk[0])}
+    auto_wrap = partial(transformer_auto_wrap_policy, transformer_layer_cls=layer_cls) if layer_cls else None
+
+    # Mixed precision policy aligned with --amp
+    mp_policy = None
+    if getattr(args, "amp", "none") == "bf16":
+        mp_policy = MixedPrecision(
+            param_dtype=torch.bfloat16,
+            reduce_dtype=torch.bfloat16,
+            buffer_dtype=torch.bfloat16,
+        )
+    elif getattr(args, "amp", "none") == "fp16":
+        mp_policy = MixedPrecision(
+            param_dtype=torch.float16,
+            reduce_dtype=torch.float16,
+            buffer_dtype=torch.float16,
+        )
+
+    try:
+        wrapped = FSDP(
+            module,
+            sharding_strategy=ShardingStrategy.FULL_SHARD,
+            auto_wrap_policy=auto_wrap,
+            mixed_precision=mp_policy,
+            device_id=torch.cuda.current_device(),
+            use_orig_params=True,
+        )
+        print(f"✅ FSDP full-shard enabled on {label} (amp={getattr(args, 'amp', 'none')})")
+        return wrapped
+    except Exception as e:
+        print(f"⚠️  Failed to wrap {label} in FSDP: {e}")
+        return module
 
 
 def reward_function_wrapper(video: torch.Tensor, prompt: str) -> torch.Tensor:
@@ -88,17 +182,66 @@ def reward_function_wrapper(video: torch.Tensor, prompt: str) -> torch.Tensor:
 def create_cogvideox_adapter(args):
     """Create CogVideoX adapter"""
     from unified_grpo.lora_utils import apply_lora_to_transformer
-    
+
     print(f"Loading CogVideoX pipeline: {args.model_path}")
-    pipeline = CogVideoXPipeline.from_pretrained(
-        args.model_path,
-        torch_dtype=torch.bfloat16,
-    ).to("cuda")
-    
-    # Ensure all components use consistent dtype
-    pipeline.transformer = pipeline.transformer.to(torch.bfloat16)
-    pipeline.vae = pipeline.vae.to(torch.bfloat16)
-    pipeline.text_encoder = pipeline.text_encoder.to(torch.bfloat16)
+
+    # If FSDP: keep on CPU during load to reduce peak, then wrap and move.
+    if args.fsdp:
+        if not dist.is_initialized():
+            dist.init_process_group("nccl")
+        local_rank = int(os.environ.get("LOCAL_RANK", 0))
+        torch.cuda.set_device(local_rank)
+
+        pipeline = CogVideoXPipeline.from_pretrained(
+            args.model_path,
+            torch_dtype=torch.bfloat16,
+            device_map=None,
+            low_cpu_mem_usage=True,
+        )
+
+        tr = pipeline.transformer
+        auto_wrap = partial(
+            transformer_auto_wrap_policy,
+            transformer_layer_cls={type(tr.transformer_blocks[0])},
+        )
+        mp_policy = None
+        if args.amp == "bf16":
+            mp_policy = MixedPrecision(
+                param_dtype=torch.bfloat16,
+                reduce_dtype=torch.bfloat16,
+                buffer_dtype=torch.bfloat16,
+            )
+        elif args.amp == "fp16":
+            mp_policy = MixedPrecision(
+                param_dtype=torch.float16,
+                reduce_dtype=torch.float16,
+                buffer_dtype=torch.float16,
+            )
+
+        tr_fsdp = FSDP(
+            tr,
+            sharding_strategy=ShardingStrategy.FULL_SHARD,
+            auto_wrap_policy=auto_wrap,
+            mixed_precision=mp_policy,
+            device_id=torch.cuda.current_device(),
+            use_orig_params=True,
+        )
+        pipeline.transformer = tr_fsdp
+
+        # Move remaining components to GPU with consistent dtype
+        pipeline.vae = pipeline.vae.to(device=torch.cuda.current_device(), dtype=torch.bfloat16)
+        pipeline.text_encoder = pipeline.text_encoder.to(device=torch.cuda.current_device(), dtype=torch.bfloat16)
+    else:
+        pipeline = CogVideoXPipeline.from_pretrained(
+            args.model_path,
+            torch_dtype=torch.bfloat16,
+        ).to("cuda")
+        pipeline.transformer = pipeline.transformer.to(torch.bfloat16)
+        pipeline.vae = pipeline.vae.to(torch.bfloat16)
+        pipeline.text_encoder = pipeline.text_encoder.to(torch.bfloat16)
+
+    if args.gradient_checkpointing:
+        maybe_enable_gradient_checkpointing(pipeline.transformer, label="CogVideoX transformer")
 
     # Important for stable sampling/training: disable dropout-like noise.
     # `.eval()` does NOT disable gradients; it only changes module behavior (e.g. dropout/bn).
@@ -170,6 +313,9 @@ def create_ltx_adapter(args):
         torch_dtype=torch.bfloat16,
     ).to("cuda")
     
+    if args.gradient_checkpointing:
+        maybe_enable_gradient_checkpointing(pipeline.transformer, label="LTX transformer")
+
     pipeline.vae.enable_slicing()
     pipeline.vae.enable_tiling()
     
@@ -201,44 +347,6 @@ def create_ltx_adapter(args):
     return adapter
 
 
-def create_hunyuan_adapter(args):
-    """Create HunyuanVideo adapter"""
-    from diffusers import HunyuanVideoPipeline
-    from unified_grpo.adapters.hunyuan_adapter import HunyuanAdapter
-    
-    print(f"Loading HunyuanVideo pipeline: {args.model_path}")
-    pipeline = HunyuanVideoPipeline.from_pretrained(
-        args.model_path,
-        torch_dtype=torch.bfloat16,
-    ).to("cuda")
-    
-    pipeline.vae.enable_slicing()
-    pipeline.vae.enable_tiling()
-    
-    # Encode prompt
-    prompt_embeds = pipeline.encode_prompt(
-        prompt=args.prompt,
-        device="cuda",
-    )
-    
-    train_blocks = None
-    if args.train_blocks:
-        train_blocks = [int(x.strip()) for x in args.train_blocks.split(",")]
-    
-    adapter = HunyuanAdapter(
-        pipeline=pipeline,
-        prompt_embeds=prompt_embeds,
-        negative_prompt_embeds=None,
-        guidance_scale=args.guidance_scale,
-        height=args.height,
-        width=args.width,
-        num_frames=args.num_frames,
-        train_transformer_blocks=train_blocks,
-    )
-    
-    return adapter
-
-
 def create_wan_adapter(args):
     """Create Wan2.1 adapter"""
     import sys
@@ -248,23 +356,8 @@ def create_wan_adapter(args):
     wan_path = Path(__file__).parent.parent.parent / "Wan2.1"
     sys.path.insert(0, str(wan_path))
     
-    from wan.text2video import WanT2V
-    from unified_grpo.adapters.wan_adapter import WanAdapter
-    
-    print(f"Loading Wan2.1 pipeline from Wan2.1 folder")
+    print("Loading Wan2.1 pipeline from Wan2.1 folder")
     print("Using custom Wan implementation")
-    
-    # Load Wan model
-    wan_model = WanT2V()  # Will need config path
-    
-    # Create wrapper that looks like pipeline
-    class WanPipelineWrapper:
-        def __init__(self, model):
-            self.model = model
-            self.transformer = model  # For adapter compatibility
-            # Add other attributes as needed
-    
-    pipeline = WanPipelineWrapper(wan_model)
     
     # For now, raise with better instructions
     raise NotImplementedError(
@@ -322,6 +415,9 @@ def create_opensora_adapter(args):
 
     pipeline = OpenSoraPipelineWrapper()
 
+    if args.gradient_checkpointing:
+        maybe_enable_gradient_checkpointing(getattr(pipeline, "model", None), label="Open-Sora model")
+
     train_blocks = None
     if args.train_blocks:
         train_blocks = [int(x.strip()) for x in args.train_blocks.split(",")]
@@ -348,8 +444,7 @@ def create_adapter(args):
         return create_cogvideox_adapter(args)
     elif model_type == "ltx":
         return create_ltx_adapter(args)
-    elif model_type == "hunyuan":
-        return create_hunyuan_adapter(args)
+
     elif model_type == "wan":
         return create_wan_adapter(args)
     elif model_type == "opensora":
@@ -493,6 +588,28 @@ Examples:
         default=None,
         help="Comma-separated block indices for LoRA (e.g., '29' or '27,28,29'). If not set, applies to ALL blocks."
     )
+
+    # Mixed precision / AMP
+    parser.add_argument(
+        "--amp",
+        choices=["none", "bf16", "fp16"],
+        default="none",
+        help="Enable mixed precision for the GRPO step (bf16 or fp16). Default: off."
+    )
+
+    parser.add_argument(
+        "--fsdp",
+        action="store_true",
+        default=False,
+        help="Enable FSDP full-shard on the transformer (use with torchrun)."
+    )
+
+    parser.add_argument(
+        "--gradient-checkpointing",
+        action="store_true",
+        default=False,
+        help="Enable gradient checkpointing on the model transformer to reduce activation memory."
+    )
     
     parser.add_argument(
         "--output-dir",
@@ -542,6 +659,15 @@ Examples:
         print(f"  Model: {args.model_type} ({total_blocks} total blocks)")
         print(f"  Unfreezing: {num_blocks_to_train} blocks (last {args.unfreeze_percentage:.0%})")
         print(f"  Block indices: {args.train_blocks}\n")
+
+    # ========================================================================
+    # Mixed precision setup
+    # ========================================================================
+    amp_dtype = None
+    if args.amp == "bf16":
+        amp_dtype = torch.bfloat16
+    elif args.amp == "fp16":
+        amp_dtype = torch.float16
     
     # ========================================================================
     # Display Configuration
@@ -559,6 +685,9 @@ Examples:
     print(f"Rollouts: {args.num_rollouts}")
     print(f"Learning rate: {args.lr}")
     print(f"Training blocks: {args.train_blocks}")
+    print(f"Mixed precision: {args.amp}")
+    print(f"FSDP: {args.fsdp}")
+    print(f"Gradient checkpointing: {args.gradient_checkpointing}")
     print()
     
     # ========================================================================
@@ -581,6 +710,7 @@ Examples:
         num_grpo_steps=args.num_grpo_steps,
         num_rollouts=args.num_rollouts,
         lr=args.lr,
+        amp_dtype=amp_dtype,
     )
     
     # ========================================================================
@@ -617,6 +747,9 @@ Examples:
     print(f"GRPO: {args.num_grpo_steps} steps, {args.num_rollouts} rollouts")
     print(f"Learning rate: {args.lr}")
     print(f"Seed: {args.seed}")
+    print(f"Mixed precision: {args.amp}")
+    print(f"FSDP: {args.fsdp}")
+    print(f"Gradient checkpointing: {args.gradient_checkpointing}")
     if args.use_lora:
         print(f"LoRA: rank={args.lora_rank}, alpha={args.lora_alpha}")
     else:

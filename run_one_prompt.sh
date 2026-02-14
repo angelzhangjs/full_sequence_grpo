@@ -15,7 +15,7 @@ echo "======================================================================"
 echo ""
 
 # Configuration
-PROMPT="A red ball drops vertically from above and falls straight down onto the wooden surface. The motion is quick and direct, with light motion blur showing its fall against the clean wooden background."
+PROMPT="A leaf floats down in a loose spiral instead of a straight line."
 OUTPUT_DIR="./cogvideox_comparison_$(date +%Y%m%d_%H%M%S)"
 
 echo "Prompt: $PROMPT"
@@ -74,11 +74,13 @@ echo ""
     --num-frames 32 \
     --guidance-scale 7.5 \
     --num-inference-steps 50 \
-    --num-grpo-steps 10 \
-    --num-rollouts 2 \
+    --num-grpo-steps 20 \
+    --num-rollouts 5 \
     --lr 1e-5 \
     --seed 42 \
     --unfreeze-percentage 0.20 \
+    --amp bf16 \
+    --gradient-checkpointing \
     --use-lora \
     --lora-rank 4 \
     --lora-alpha 8 \
