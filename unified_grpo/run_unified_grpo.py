@@ -276,66 +276,39 @@ def create_wan_adapter(args):
 
 def create_opensora_adapter(args):
     """Create Open-Sora adapter"""
-    import sys
-    from pathlib import Path
-
-    # Add Open-Sora to path
-    opensora_path = Path(__file__).parent.parent.parent / "Open-Sora"
-    sys.path.insert(0, str(opensora_path))
-
+    
+    from diffusers import OpenSoraPipeline
     from unified_grpo.adapters.opensora_adapter import OpenSoraAdapter
-
-    try:
-        from mmengine.config import Config
-        from opensora.utils.sampling import prepare_models
-        from opensora.utils.misc import to_torch_dtype
-    except Exception as e:
-        raise RuntimeError(
-            "Open-Sora dependencies not available. "
-            "Install Open-Sora requirements and ensure `Open-Sora/` is importable."
-        ) from e
-
-    if not args.model_path:
-        raise ValueError(
-            "For --model-type opensora, please pass --model-path as an Open-Sora config file, "
-            "e.g. Open-Sora/configs/diffusion/inference/256px.py"
-        )
-
-    cfg = Config.fromfile(args.model_path)
-    device = "cuda"
-    dtype = to_torch_dtype(getattr(cfg, "dtype", "bf16"))
-
-    print(f"Loading Open-Sora models from config: {args.model_path}")
-    model, model_ae, model_t5, model_clip, optional_models = prepare_models(
-        cfg, device, dtype, offload_model=bool(getattr(cfg, "offload_model", False))
+    
+    print(f"Loading Open-Sora pipeline: {args.model_path}")
+    pipeline = OpenSoraPipeline.from_pretrained(
+        args.model_path,
+        torch_dtype=torch.float16,
+    ).to("cuda")
+    
+    pipeline.vae.enable_slicing()
+    
+    # Encode prompt
+    prompt_embeds = pipeline.encode_prompt(
+        prompt=args.prompt,
+        device="cuda",
     )
-
-    class OpenSoraPipelineWrapper:
-        def __init__(self):
-            self.model = model
-            self.ae = model_ae
-            self.t5 = model_t5
-            self.clip = model_clip
-            self.optional_models = optional_models
-            self.device = torch.device(device)
-            self.dtype = dtype
-
-    pipeline = OpenSoraPipelineWrapper()
-
+    
     train_blocks = None
     if args.train_blocks:
         train_blocks = [int(x.strip()) for x in args.train_blocks.split(",")]
-
+    
     adapter = OpenSoraAdapter(
         pipeline=pipeline,
-        prompt=args.prompt,
-        negative_prompt="",
-        guidance_scale=float(args.guidance_scale),
-        height=int(args.height),
-        width=int(args.width),
-        num_frames=int(args.num_frames),
+        prompt_embeds=prompt_embeds,
+        negative_prompt_embeds=None,
+        guidance_scale=args.guidance_scale,
+        height=args.height,
+        width=args.width,
+        num_frames=args.num_frames,
         train_transformer_blocks=train_blocks,
     )
+    
     return adapter
 
 

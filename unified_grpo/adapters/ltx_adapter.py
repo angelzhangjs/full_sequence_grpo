@@ -152,31 +152,17 @@ class LTXAdapter(VideoGRPOAdapter):
     
     def decode_for_reward(self, *, latents_or_x0: torch.Tensor, x0_is_patchified: bool) -> torch.Tensor:
         vae = self.pipeline.vae
-        scaling = float(getattr(getattr(vae, "config", None), "scaling_factor", 1.0))
-
-        lat = latents_or_x0
-        # Be tolerant to either [B, C, F, H, W] (common) or [B, F, C, H, W].
-        if lat.ndim == 5 and lat.shape[1] != 4 and lat.shape[2] == 4:
-            # [B, F, C, H, W] -> [B, C, F, H, W]
-            lat = lat.transpose(1, 2).contiguous()
-
-        # Diffusers-style VAEs expect latents scaled by 1/scaling_factor for decoding.
-        lat = lat / max(scaling, 1e-8)
-
-        vae_dtype = getattr(vae, "dtype", torch.float16)
-        lat = lat.to(device=vae.device, dtype=vae_dtype)
-
-        # LTX VAE decode uses a target pixel-space shape; match batch size.
-        target_shape = (int(lat.shape[0]), 3, int(self.num_frames), int(self.height), int(self.width))
-
-        # Some LTX VAEs require a timestep tensor; keep it on the same device.
-        t0 = torch.zeros((int(lat.shape[0]),), device=vae.device, dtype=torch.float32)
-
+        scaling = vae.config.scaling_factor
+        
+        lat = latents_or_x0 / scaling
+        lat = lat.to(device=vae.device, dtype=torch.bfloat16)
+        
+        target_shape = (1, 3, self.num_frames, self.height, self.width)
+        
         with torch.no_grad():
-            out = vae.decode(lat, target_shape=target_shape, timestep=t0)
-            vid = out.sample if hasattr(out, "sample") else out
+            vid = vae.decode(lat, target_shape=target_shape, timestep=torch.tensor([0.0])).sample
             vid = (vid / 2 + 0.5).clamp(0, 1)
-
+        
         return vid
     
     def extra_log_state(self) -> Dict[str, Any]:

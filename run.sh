@@ -8,6 +8,8 @@ cd "$(dirname "$0")"
 
 export PYTHONPATH="${PWD}:${PYTHONPATH}"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+# Prevent user-site packages (~/.local) from shadowing the conda env.
+export PYTHONNOUSERSITE=1
 
 echo "======================================================================"
 echo "FULL PIPELINE: BASELINE + GRPO TRAINING"

@@ -8,6 +8,8 @@ cd "$(dirname "$0")"
 
 export PYTHONPATH="${PWD}:${PYTHONPATH}"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+# Prevent user-site packages (~/.local) from shadowing the conda env.
+export PYTHONNOUSERSITE=1
 
 echo "======================================================================"
 echo "BATCH GRPO TRAINING - ALL ACTION PROMPTS"
@@ -21,10 +23,19 @@ TOTAL_PROMPTS=$(wc -l < "$PROMPTS_FILE")
 echo "Found $TOTAL_PROMPTS prompts in $PROMPTS_FILE"
 echo "This will take approximately $((TOTAL_PROMPTS * 15)) minutes"
 echo ""
-read -p "Continue? (y/n) " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    exit 0
+
+# Non-interactive mode:
+# - If stdin is not a TTY (e.g. running under `conda run`, CI), auto-continue.
+# - Or set AUTO_YES=1 to skip the prompt explicitly.
+AUTO_YES="${AUTO_YES:-0}"
+if [[ "${AUTO_YES}" == "1" || "${AUTO_YES}" == "true" || ! -t 0 ]]; then
+    echo "Non-interactive run detected (or AUTO_YES set). Continuing without prompt."
+else
+    read -p "Continue? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 0
+    fi
 fi
 
 # Create batch output directory

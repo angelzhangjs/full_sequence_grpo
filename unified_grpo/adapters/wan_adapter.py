@@ -14,7 +14,7 @@ from unified_grpo.adapters.base import StepContext, StepOutput, VideoGRPOAdapter
 class WanAdapter(VideoGRPOAdapter):
     """
     Adapter for Wan2.1 (Kuaishou)
-
+    
     This adapter is implemented to follow Wan2.1's native sampling loop in
     `Wan2.1/wan/text2video.py` (WanT2V.generate):
     - latents are video-latents shaped [B, C, F_lat, H_lat, W_lat] (we use B=1)
@@ -32,7 +32,7 @@ class WanAdapter(VideoGRPOAdapter):
     prompt_embeds: Any
     negative_prompt_embeds: Optional[Any] = None
     guidance_scale: float = 5.0
-
+    
     # Generation geometry (pixel-space)
     height: int = 720
     width: int = 1280
@@ -50,7 +50,7 @@ class WanAdapter(VideoGRPOAdapter):
 
     # Internal scheduler instance created by get_timesteps()
     _scheduler: Optional[Any] = None
-
+    
     name: str = "wan"
     
     def device(self) -> torch.device:
@@ -162,15 +162,15 @@ class WanAdapter(VideoGRPOAdapter):
             for p in model.parameters():
                 p.requires_grad_(True)
             return [p for p in model.parameters() if p.requires_grad]
-
+        
         # Freeze everything first, then unfreeze selected blocks.
         for p in model.parameters():
             p.requires_grad_(False)
         for i, blk in enumerate(blocks):
             req = i in ids
-            for p in blk.parameters():
+                for p in blk.parameters():
                 p.requires_grad_(req)
-
+        
         return [p for p in model.parameters() if p.requires_grad]
     
     def step(
@@ -201,7 +201,7 @@ class WanAdapter(VideoGRPOAdapter):
         lat_in = latents.detach() if not with_grad else latents
         if (not with_grad) and int(rollout_index) > 0 and float(rollout_noise_scale) > 0:
             lat_in = lat_in + float(rollout_noise_scale) * torch.randn_like(lat_in)
-
+        
         # WanModel expects a *list* of latents, each shaped [C, F, H, W].
         if lat_in.ndim != 5:
             raise ValueError(f"WanAdapter expected latents shape [B,C,F,H,W], got {tuple(lat_in.shape)}")
@@ -230,7 +230,7 @@ class WanAdapter(VideoGRPOAdapter):
             out_list = model(x_list, t=timestep, context=context_list, seq_len=int(seq_len))
             # WanModel returns list[Tensor]; take first element
             return out_list[0]
-
+        
         if with_grad:
             with amp.autocast(dtype=param_dtype):
                 noise_pred_cond = _forward(ctx_cond)
@@ -239,10 +239,10 @@ class WanAdapter(VideoGRPOAdapter):
             with torch.no_grad(), amp.autocast(dtype=param_dtype):
                 noise_pred_cond = _forward(ctx_cond)
                 noise_pred_uncond = _forward(ctx_uncond)
-
+        
         # CFG (matches WanT2V.generate)
         noise_pred = noise_pred_uncond + float(self.guidance_scale) * (noise_pred_cond - noise_pred_uncond)
-
+        
         # Scheduler step (matches WanT2V.generate: step(noise_pred.unsqueeze(0), t, latents[0].unsqueeze(0)))
         step_out = self._scheduler.step(
             noise_pred.unsqueeze(0),
@@ -258,7 +258,7 @@ class WanAdapter(VideoGRPOAdapter):
         vae = getattr(self.pipeline, "vae", None)
         if vae is None or not hasattr(vae, "decode"):
             raise RuntimeError("WanAdapter expects pipeline.vae.decode (WanVAE).")
-
+        
         lat = latents_or_x0
         if lat.ndim == 5:
             lat0 = lat[0]
@@ -273,7 +273,7 @@ class WanAdapter(VideoGRPOAdapter):
             vid = vids[0]  # [3, F, H, W] in [-1, 1]
             vid = (vid / 2 + 0.5).clamp(0, 1)
             vid = vid.permute(1, 0, 2, 3).contiguous().unsqueeze(0)  # [1, F, 3, H, W]
-
+        
         return vid
     
     def extra_log_state(self) -> Dict[str, Any]:

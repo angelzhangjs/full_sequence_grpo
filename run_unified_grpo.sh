@@ -3,6 +3,7 @@
 # Supports multiple video models with full argument control
 
 set -e
+export PYTHONNOUSERSITE=1
 
 # ============================================================================
 # Display Help

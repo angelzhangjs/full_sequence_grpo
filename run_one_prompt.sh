@@ -8,6 +8,8 @@ cd "$(dirname "$0")"
 
 export PYTHONPATH="${PWD}:${PYTHONPATH}"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+# Prevent user-site packages (~/.local) from shadowing the conda env.
+export PYTHONNOUSERSITE=1
 
 echo "======================================================================"
 echo "FULL PIPELINE: BASELINE + GRPO TRAINING"
@@ -76,7 +78,7 @@ echo ""
     --num-inference-steps 50 \
     --num-grpo-steps 10 \
     --num-rollouts 2 \
-    --lr 1e-5 \
+    --lr 1e-4 \
     --seed 42 \
     --unfreeze-percentage 0.20 \
     --use-lora \
