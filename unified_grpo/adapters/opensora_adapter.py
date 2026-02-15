@@ -37,7 +37,7 @@ class OpenSoraAdapter(VideoGRPOAdapter):
     negative_prompt: str = ""
 
     # Sampling configuration
-    guidance_scale: float = 4.0  # Open-Sora default in SamplingOption
+    guidance_scale: float = 7.0  # Open-Sora default in SamplingOption
     patch_size: int = 2
     channel: Optional[int] = None  # if None, inferred from pipeline.model.in_channels
     shift: bool = True

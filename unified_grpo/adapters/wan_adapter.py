@@ -168,7 +168,7 @@ class WanAdapter(VideoGRPOAdapter):
             p.requires_grad_(False)
         for i, blk in enumerate(blocks):
             req = i in ids
-                for p in blk.parameters():
+            for p in blk.parameters():
                 p.requires_grad_(req)
         
         return [p for p in model.parameters() if p.requires_grad]
