@@ -72,6 +72,7 @@ echo ""
     --model-type cogvideox \
     --model-path THUDM/CogVideoX-2b \
     --prompt "$PROMPT" \
+    --gradient-checkpointing \
     --height 480 \
     --width 720 \
     --num-frames 32 \

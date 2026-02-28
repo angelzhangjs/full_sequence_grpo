@@ -1,0 +1,11 @@
+[
+  {
+    "video_id": "cogvideo_baseline",
+    "prompt_en": "A leaf floats down in a loose spiral instead of a straight line."
+  },
+  {
+    "video_id": "cogvideo_grpo",
+    "prompt_en": "A leaf floats down in a loose spiral instead of a straight line."
+  }
+]
+

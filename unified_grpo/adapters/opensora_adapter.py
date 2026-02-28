@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import torch
 
@@ -9,173 +9,213 @@ from unified_grpo.adapters.base import StepContext, StepOutput, VideoGRPOAdapter
 
 
 @dataclass
+class OpenSoraComponents:
+    """Container for Open-Sora components (model/vae/text_encoder/scheduler) built from `Open-Sora/`."""
+
+    model: Any
+    vae: Any
+    text_encoder: Any
+    scheduler: Any
+    model_args: Dict[str, torch.Tensor]
+    device: torch.device
+    dtype: torch.dtype
+    num_timesteps: int
+    latent_size: tuple[int, int, int]
+
+    @staticmethod
+    def from_config(
+        *,
+        config_path: str,
+        model_path: Optional[str],
+        device: str,
+        dtype: str,
+        height: int,
+        width: int,
+        num_frames: int,
+        num_sampling_steps: int,
+        guidance_scale: float,
+        seed: int,
+    ) -> "OpenSoraComponents":
+        from mmengine.config import Config
+
+        from opensora.registry import MODELS, SCHEDULERS, build_module
+        from opensora.utils.inference_utils import prepare_multi_resolution_info
+
+        cfg = Config.fromfile(config_path)
+
+        if model_path:
+            cfg.model["from_pretrained"] = model_path
+
+        # Open-Sora configs sometimes enable apex fused LayerNorm kernels by default.
+        # If apex fused LN isn't actually available, Open-Sora will raise:
+        #   RuntimeError: FusedLayerNorm not available. Please install apex.
+        # For portability, disable it only when the specific fused LN import is missing.
+        try:
+            from apex.normalization import FusedLayerNorm  # type: ignore  # noqa: F401
+
+            _fused_ln_available = True
+        except Exception:
+            _fused_ln_available = False
+        if (not _fused_ln_available) and isinstance(getattr(cfg, "model", None), dict):
+            if bool(cfg.model.get("enable_layernorm_kernel", False)):
+                cfg.model["enable_layernorm_kernel"] = False
+
+        # Force explicit image_size/frames to match unified args.
+        cfg.image_size = (int(height), int(width))
+        cfg.num_frames = int(num_frames)
+
+        # Override scheduler sampling steps + guidance scale.
+        if "scheduler" in cfg and isinstance(cfg.scheduler, dict):
+            cfg.scheduler["num_sampling_steps"] = int(num_sampling_steps)
+            cfg.scheduler["cfg_scale"] = float(guidance_scale)
+
+        dev = torch.device(device)
+        dt = torch.bfloat16 if dtype.lower() in ("bf16", "bfloat16") else torch.float16 if dtype.lower() in ("fp16", "float16") else torch.float32
+
+        text_encoder = build_module(cfg.text_encoder, MODELS, device=str(dev))
+        vae = build_module(cfg.vae, MODELS).to(dev, dt).eval()
+
+        input_size = (int(cfg.num_frames), *cfg.image_size)
+        latent_size = tuple(int(x) for x in vae.get_latent_size(input_size))
+
+        model = (
+            build_module(
+                cfg.model,
+                MODELS,
+                input_size=latent_size,
+                in_channels=vae.out_channels,
+                caption_channels=text_encoder.output_dim,
+                model_max_length=text_encoder.model_max_length,
+                enable_sequence_parallelism=False,
+            )
+            .to(dev, dt)
+            .eval()
+        )
+        text_encoder.y_embedder = model.y_embedder
+
+        scheduler = build_module(cfg.scheduler, SCHEDULERS)
+
+        fps = int(getattr(cfg, "fps", 24))
+        model_args = prepare_multi_resolution_info(
+            getattr(cfg, "multi_resolution", None),
+            batch_size=1,
+            image_size=cfg.image_size,
+            num_frames=int(cfg.num_frames),
+            fps=fps,
+            device=dev,
+            dtype=dt,
+        )
+
+        return OpenSoraComponents(
+            model=model,
+            vae=vae,
+            text_encoder=text_encoder,
+            scheduler=scheduler,
+            model_args=model_args,
+            device=dev,
+            dtype=dt,
+            num_timesteps=int(getattr(scheduler, "num_timesteps", 1000)),
+            latent_size=latent_size,
+        )
+
+
+@dataclass
 class OpenSoraAdapter(VideoGRPOAdapter):
-    """
-    Adapter for Open-Sora
+    """Step-wise GRPO adapter for Open-Sora RFLOW scheduler."""
 
-    This adapter follows the Open-Sora sampling implementation in:
-    - `Open-Sora/opensora/utils/sampling.py`
-      update rule (flow-style Euler): `img = img + (t_prev - t_curr) * pred`
-
-    Notes:
-    - Open-Sora uses a *packed* latent representation shaped [B, L, D] where
-      \(L = T * H' * W'\) and \(D = C * patch_size^2\).
-    - The diffusion model forward takes keyword inputs produced by
-      `opensora.utils.sampling.prepare(...)`: img/img_ids/txt/txt_ids/y_vec, plus
-      timesteps and guidance.
-    """
-
-    # Expected pipeline wrapper fields:
-    # - model: diffusion model
-    # - ae: autoencoder with .decode()
-    # - t5, clip: text encoders compatible with opensora.utils.sampling.prepare
-    # - device, dtype: execution settings
-    pipeline: Any
-
-    # Prompt text for conditioning. (Open-Sora's `prepare()` encodes text using T5/CLIP)
+    components: OpenSoraComponents
     prompt: str
-    negative_prompt: str = ""
+    guidance_scale: float = 7.0
+    height: int = 480
+    width: int = 720
+    num_frames: int = 49
 
-    # Sampling configuration
-    guidance_scale: float = 7.0  # Open-Sora default in SamplingOption
-    patch_size: int = 2
-    channel: Optional[int] = None  # if None, inferred from pipeline.model.in_channels
-    shift: bool = True
-    flow_shift: Optional[float] = None
-
-    # Generation geometry (pixel-space)
-    height: int = 512
-    width: int = 512
-    num_frames: int = 17  # Open-Sora often uses 17-frame chunks
-    temporal_reduction: int = 1
-
-    # Trainable subset selection
     train_transformer_blocks: Optional[List[int]] = None
-    unfreeze_percentage: Optional[float] = None  # optional "last N%" unfreezing
+    unfreeze_percentage: Optional[float] = None
 
-    # Cached schedule + static conditioning tensors
-    _timesteps: Optional[List[float]] = None  # schedule length = num_steps+1
-    _static_inp: Optional[Dict[str, torch.Tensor]] = None
-    _num_latent_frames: Optional[int] = None
+    _timesteps: Optional[List[torch.Tensor]] = None
+    _dts: Optional[List[torch.Tensor]] = None
+    _static_model_args: Optional[Dict[str, torch.Tensor]] = None
 
     name: str = "opensora"
-    
+
     def device(self) -> torch.device:
-        dev = getattr(self.pipeline, "device", None)
-        return torch.device(dev) if dev is not None else torch.device("cuda")
-    
+        return self.components.device
+
     def get_timesteps(self, *, num_inference_steps: int) -> list[torch.Tensor]:
-        # Build Open-Sora schedule (num_steps+1) and return step tokens (num_steps).
-        try:
-            from opensora.utils.sampling import get_schedule
-        except Exception as e:
-            raise RuntimeError("OpenSoraAdapter requires Open-Sora package importable as `opensora`.") from e
+        sched = self.components.scheduler
+        if not hasattr(sched, "num_timesteps"):
+            raise RuntimeError("OpenSoraAdapter currently supports only the RFLOW scheduler.")
 
-        # We need an estimate of sequence length to compute shifted schedule.
-        # Use the latent noise spatial size implied by AE compression (env var in Open-Sora code).
-        # We'll compute a conservative seq len based on the packed latent grid.
-        h = int(self.height)
-        w = int(self.width)
-        t = int(self.num_frames) // max(1, int(self.temporal_reduction))
-        # This matches `unpack`'s internal grid: ceil(height/D), ceil(width/D), multiplied by patch_size.
-        import math, os
-        D = int(os.environ.get("AE_SPATIAL_COMPRESSION", 16))
-        h_lat = self.patch_size * int(math.ceil(h / D))
-        w_lat = self.patch_size * int(math.ceil(w / D))
-        image_seq_len = (h_lat * w_lat) // (self.patch_size**2)
+        num_timesteps = int(getattr(sched, "num_timesteps", 1000))
+        use_discrete = bool(getattr(sched, "use_discrete_timesteps", False))
+        use_transform = bool(getattr(sched, "use_timestep_transform", False))
 
-        timesteps = get_schedule(
-            num_steps=int(num_inference_steps),
-            image_seq_len=int(image_seq_len),
-            num_frames=int(t),
-            shift_alpha=self.flow_shift,
-            shift=bool(self.shift),
-        )
-        # Cache full schedule (includes final zero)
-        self._timesteps = [float(x) for x in timesteps]
-        return [torch.tensor(float(x), device=self.device()) for x in timesteps[:-1]]
-    
+        additional_args = dict(self.components.model_args)
+
+        ts_f = [(1.0 - i / float(num_inference_steps)) * float(num_timesteps) for i in range(num_inference_steps)]
+        if use_discrete:
+            ts_f = [int(round(t)) for t in ts_f]
+
+        ts = [torch.tensor([t], device=self.device(), dtype=torch.float32) for t in ts_f]
+        if use_transform:
+            from opensora.schedulers.rf.rectified_flow import timestep_transform
+
+            ts = [timestep_transform(t, additional_args, num_timesteps=num_timesteps) for t in ts]
+
+        dts: list[torch.Tensor] = []
+        for i in range(len(ts)):
+            dt = ts[i] - ts[i + 1] if i < len(ts) - 1 else ts[i]
+            dts.append(dt / float(num_timesteps))
+
+        self._timesteps = ts
+        self._dts = dts
+        return ts
+
     def prepare_latents(self, *, seed: int) -> torch.Tensor:
-        """
-        Initialize Open-Sora latent noise and build the static conditioning tensors
-        via `opensora.utils.sampling.prepare(...)`.
-        Returns the *packed* latent `img` shaped [B, L, D].
-        """
-        try:
-            from opensora.utils.sampling import get_noise, prepare
-        except Exception as e:
-            raise RuntimeError("OpenSoraAdapter requires Open-Sora package importable as `opensora`.") from e
-
-        model = getattr(self.pipeline, "model", None)
-        if model is None:
-            raise RuntimeError("OpenSoraAdapter expects pipeline.model (diffusion model).")
-        ae = getattr(self.pipeline, "ae", None)
-        if ae is None:
-            raise RuntimeError("OpenSoraAdapter expects pipeline.ae (autoencoder).")
-        t5 = getattr(self.pipeline, "t5", None)
-        clip = getattr(self.pipeline, "clip", None)
-        if t5 is None or clip is None:
-            raise RuntimeError("OpenSoraAdapter expects pipeline.t5 and pipeline.clip.")
-
-        dtype = getattr(self.pipeline, "dtype", torch.bfloat16)
-
-        in_ch = int(self.channel) if self.channel is not None else int(getattr(model, "in_channels", 16))
-        if in_ch % (self.patch_size**2) != 0:
-            raise ValueError(f"model.in_channels={in_ch} must be divisible by patch_size^2={self.patch_size**2}")
-        noise_ch = in_ch // (self.patch_size**2)
-        num_latent_frames = int(self.num_frames) // max(1, int(self.temporal_reduction))
-        self._num_latent_frames = int(num_latent_frames)
-
-        z = get_noise(
-            num_samples=1,
-            height=int(self.height),
-            width=int(self.width),
-            num_frames=int(num_latent_frames),
+        g = torch.Generator(device=str(self.device()))
+        g.manual_seed(int(seed))
+        t_lat, h_lat, w_lat = self.components.latent_size
+        z = torch.randn(
+            1,
+            int(self.components.vae.out_channels),
+            int(t_lat),
+            int(h_lat),
+            int(w_lat),
             device=self.device(),
-            dtype=dtype,
-            seed=int(seed),
-            patch_size=int(self.patch_size),
-            channel=int(noise_ch),
+            dtype=self.components.dtype,
+            generator=g,
         )
 
-        # Build static conditioning tensors. `prepare()` packs img and encodes text.
-        inp = prepare(
-            t5=t5,
-            clip=clip,
-            img=z,
-            prompt=[self.prompt],
-            patch_size=int(self.patch_size),
-        )
-        # Cache everything except `img` (which is the latent state).
-        self._static_inp = {k: v for k, v in inp.items() if k != "img"}
+        from opensora.models.text_encoder.t5 import text_preprocessing
 
-        return inp["img"]
-    
+        prompt = text_preprocessing(self.prompt)
+        te = self.components.text_encoder
+        model_args = te.encode([prompt])
+        y_null = te.null(1)
+        model_args["y"] = torch.cat([model_args["y"], y_null], 0)
+        model_args.update(self.components.model_args)
+        self._static_model_args = model_args
+
+        return z
+
     def trainable_parameters(self) -> list[torch.nn.Parameter]:
-        model = getattr(self.pipeline, "model", None)
-        if model is None:
-            raise RuntimeError("OpenSoraAdapter expects pipeline.model (diffusion model).")
-
+        model = self.components.model
         blocks = getattr(model, "blocks", None)
 
-        # If no block list and no percentage: train all.
         if not self.train_transformer_blocks and self.unfreeze_percentage is None:
             for p in model.parameters():
                 p.requires_grad_(True)
             return [p for p in model.parameters() if p.requires_grad]
 
-        # If blocks are available, allow selecting last N% or explicit list.
         ids: Optional[set[int]] = None
         if self.train_transformer_blocks:
             ids = set(int(x) for x in self.train_transformer_blocks)
         elif self.unfreeze_percentage is not None and blocks is not None:
             import math
+
             p = float(self.unfreeze_percentage)
-            if not (0.0 < p <= 1.0):
-                raise ValueError(f"unfreeze_percentage must be in (0,1], got {p}")
             total = len(blocks)
-            if total == 0:
-                raise RuntimeError("OpenSoraAdapter: model.blocks is empty; cannot unfreeze any blocks.")
             k = max(1, int(math.ceil(total * p)))
             start = max(0, total - k)
             ids = set(range(start, total))
@@ -184,7 +224,6 @@ class OpenSoraAdapter(VideoGRPOAdapter):
         for p in model.parameters():
             p.requires_grad_(False)
         if ids is None or blocks is None:
-            # Fallback: unfreeze everything if we can't address blocks.
             for p in model.parameters():
                 p.requires_grad_(True)
             return [p for p in model.parameters() if p.requires_grad]
@@ -195,105 +234,57 @@ class OpenSoraAdapter(VideoGRPOAdapter):
                 p.requires_grad_(req)
 
         return [p for p in model.parameters() if p.requires_grad]
-    
+
     def step(
         self,
         *,
         latents: torch.Tensor,
-        ctx: StepContext,
+        step_context: StepContext,
         with_grad: bool,
-        rollout_noise_scale: float,
-        rollout_index: int,
         solver_state=None,
     ) -> StepOutput:
-        
-        if self._timesteps is None:
-            raise RuntimeError("OpenSoraAdapter.step() called before get_timesteps(); schedule is not initialized.")
-        if self._static_inp is None:
-            raise RuntimeError("OpenSoraAdapter.step() called before prepare_latents(); conditioning is not initialized.")
+        if self._timesteps is None or self._dts is None:
+            raise RuntimeError("OpenSoraAdapter.step() called before get_timesteps().")
+        if self._static_model_args is None:
+            raise RuntimeError("OpenSoraAdapter.step() called before prepare_latents().")
 
-        model = getattr(self.pipeline, "model", None)
-        if model is None:
-            raise RuntimeError("OpenSoraAdapter expects pipeline.model (diffusion model).")
+        i = int(step_context.step_index)
+        z = latents.detach() if not with_grad else latents
 
-        # Open-Sora uses float timesteps in [0,1] (schedule from 1->0).
-        # Use ctx.step_index to find the next timestep for Euler update.
-        i = int(ctx.step_index)
-        if i < 0 or i >= len(self._timesteps) - 1:
-            raise IndexError(f"step_index {i} out of range for timesteps length {len(self._timesteps)}")
-        t_curr = float(self._timesteps[i])
-        t_prev = float(self._timesteps[i + 1])
+        t = self._timesteps[i]
+        dt = self._dts[i]
 
-        img = latents.detach() if not with_grad else latents
-        if (not with_grad) and int(rollout_index) > 0 and float(rollout_noise_scale) > 0:
-            img = img + float(rollout_noise_scale) * torch.randn_like(img)
+        z_in = torch.cat([z, z], 0)
+        t_in = torch.cat([t, t], 0)
 
-        # Model expects `timesteps` as vector [B]
-        t_vec = torch.full((img.shape[0],), t_curr, device=img.device, dtype=img.dtype)
-        guidance_vec = torch.full(
-            (img.shape[0],), float(self.guidance_scale), device=img.device, dtype=img.dtype
-        )
-
-        def _forward() -> torch.Tensor:
-            return model(
-                img=img,
-                timesteps=t_vec,
-                guidance=guidance_vec,
-                **self._static_inp,
-            )
+        def _forward():
+            return self.components.model(z_in, t_in, **self._static_model_args)
 
         if with_grad:
-            pred = _forward()
+            out = _forward()
         else:
             with torch.no_grad():
-                pred = _forward()
+                out = _forward()
 
-        # Euler update: img_{prev} = img_{curr} + (t_prev - t_curr) * pred
-        next_img = img + (t_prev - t_curr) * pred
+        pred = out.chunk(2, dim=1)[0]
+        pred_cond, pred_uncond = pred.chunk(2, dim=0)
+        v_pred = pred_uncond + float(self.guidance_scale) * (pred_cond - pred_uncond)
 
-        return StepOutput(next_latents=next_img, action=pred, x0_latents=None, solver_state=solver_state)
-    
+        z_next = z + v_pred * dt[:, None, None, None, None]
+        return StepOutput(next_latents=z_next, action=v_pred, x0_latents=None, solver_state=solver_state)
+
     def decode_for_reward(self, *, latents_or_x0: torch.Tensor, x0_is_patchified: bool) -> torch.Tensor:
-        if self._num_latent_frames is None:
-            raise RuntimeError("OpenSoraAdapter.decode_for_reward() called before prepare_latents().")
-
-        try:
-            from opensora.utils.sampling import unpack
-        except Exception as e:
-            raise RuntimeError("OpenSoraAdapter requires Open-Sora package importable as `opensora`.") from e
-
-        ae = getattr(self.pipeline, "ae", None)
-        if ae is None or not hasattr(ae, "decode"):
-            raise RuntimeError("OpenSoraAdapter expects pipeline.ae.decode.")
-
-        img = latents_or_x0
-        # unpack from [B,L,D] -> [B,C,T,H',W']
-        z = unpack(
-            img,
-            height=int(self.height),
-            width=int(self.width),
-            num_frames=int(self._num_latent_frames),
-            patch_size=int(self.patch_size),
-        )
-        with torch.no_grad():
-            x = ae.decode(z)
-        # x: [B, 3, T, H, W] (typically in [-1,1] or [0,1] depending on AE)
-        x = x.float()
-        if float(x.min()) < -0.1:
-            x = (x / 2 + 0.5)
-        x = x.clamp(0, 1)
-        x = x[:, :, : int(self.num_frames)]  # trim to requested frame count
-        x = x.permute(0, 2, 1, 3, 4).contiguous()  # [B, T, C, H, W]
-        return x
-    
-    def extra_log_state(self) -> Dict[str, Any]:
-        return {
-            "height": int(self.height),
-            "width": int(self.width),
-            "num_frames": int(self.num_frames),
-            "guidance_scale": float(self.guidance_scale),
-            "patch_size": int(self.patch_size),
-            "temporal_reduction": int(self.temporal_reduction),
-            "train_transformer_blocks": self.train_transformer_blocks or [],
-            "unfreeze_percentage": float(self.unfreeze_percentage) if self.unfreeze_percentage is not None else None,
-        }
+        # Decode to pixel-space video and return per-frame tensor [T, 3, H, W] in [0, 1] if possible.
+        video = self.components.vae.decode(latents_or_x0.to(self.components.dtype), num_frames=int(self.num_frames))
+        # expected [B, C, T, H, W]
+        if video.ndim == 5:
+            video = video[0]
+        if video.ndim != 4:
+            raise ValueError(f"Unexpected OpenSora decoded video shape: {tuple(video.shape)}")
+        # [C, T, H, W] -> [T, C, H, W]
+        if video.shape[0] == 3:
+            return video.permute(1, 0, 2, 3).contiguous()
+        # If already [T, C, H, W], return as-is.
+        if video.shape[1] == 3:
+            return video.contiguous()
+        raise ValueError(f"Unexpected OpenSora channel layout in decoded video: {tuple(video.shape)}")

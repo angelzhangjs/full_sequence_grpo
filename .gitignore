@@ -31,6 +31,8 @@ grpo*/
 grpo2*/
 grpo20*/
 grpo_*/
+batch_grpo*/
+CLIP_Only_batch_grpo*/
 
 # Baseline outputs
 baseline/
@@ -86,6 +88,8 @@ venv/
 env/
 ENV/
 .venv
+.venv*/
+.venv-ltx/
 conda/
 anaconda/
 
@@ -200,6 +204,17 @@ Desktop.ini
 **/wandb/
 **/lightning_logs/
 **/tb_logs/
+
+# Temporary/local quality checks
+_opensora_quality_check*/
+_opensora_quality_check2*/
+_opensora_quality_check3*/
+_opensora_syntax_check*/
+_tmp_opensora_check*/
+
+# Local clones / embedded repos (do not commit)
+VideoAlign/
+physical-ai-bench/
 
 # ============================================================================
 # KEEP THESE (exceptions)

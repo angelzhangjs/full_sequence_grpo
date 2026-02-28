@@ -1,0 +1,84 @@
+{
+    "aesthetic_quality": [
+        0.45360465347766876,
+        [
+            {
+                "video_path": "/home/ubuntu/angel-research/videoalign_cogvideo_benchmark/cogvideo_baseline__42.mp4",
+                "video_results": 0.3723023235797882
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/videoalign_cogvideo_benchmark/cogvideo_grpo__42.mp4",
+                "video_results": 0.5349069833755493
+            }
+        ]
+    ],
+    "background_consistency": [
+        0.934416740171371,
+        [
+            {
+                "video_path": "/home/ubuntu/angel-research/videoalign_cogvideo_benchmark/cogvideo_baseline__42.mp4",
+                "video_results": 0.9267184349798387,
+                "video_sim": 28.728271484375,
+                "cnt_per_video": 31
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/videoalign_cogvideo_benchmark/cogvideo_grpo__42.mp4",
+                "video_results": 0.9421150453629032,
+                "video_sim": 29.20556640625,
+                "cnt_per_video": 31
+            }
+        ]
+    ],
+    "imaging_quality": [
+        0.4520474088191986,
+        [
+            {
+                "video_path": "/home/ubuntu/angel-research/videoalign_cogvideo_benchmark/cogvideo_baseline__42.mp4",
+                "video_results": 29.078702688217163
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/videoalign_cogvideo_benchmark/cogvideo_grpo__42.mp4",
+                "video_results": 61.33077907562256
+            }
+        ]
+    ],
+    "motion_smoothness": [
+        0.9885812561778826,
+        [
+            {
+                "video_path": "/home/ubuntu/angel-research/videoalign_cogvideo_benchmark/cogvideo_baseline__42.mp4",
+                "video_results": 0.9938267605704832
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/videoalign_cogvideo_benchmark/cogvideo_grpo__42.mp4",
+                "video_results": 0.9833357517852821
+            }
+        ]
+    ],
+    "overall_consistency": [
+        0.18431151658296585,
+        [
+            {
+                "video_path": "/home/ubuntu/angel-research/videoalign_cogvideo_benchmark/cogvideo_baseline__42.mp4",
+                "video_results": 0.15759675204753876
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/videoalign_cogvideo_benchmark/cogvideo_grpo__42.mp4",
+                "video_results": 0.21102628111839294
+            }
+        ]
+    ],
+    "subject_consistency": [
+        0.8694470664185863,
+        [
+            {
+                "video_path": "/home/ubuntu/angel-research/videoalign_cogvideo_benchmark/cogvideo_baseline__42.mp4",
+                "video_results": 0.8399039151207093
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/videoalign_cogvideo_benchmark/cogvideo_grpo__42.mp4",
+                "video_results": 0.8989902177164631
+            }
+        ]
+    ]
+}

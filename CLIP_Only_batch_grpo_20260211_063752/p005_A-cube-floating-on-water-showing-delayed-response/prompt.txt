@@ -1,1 +1,0 @@
-A cube floating on water, showing delayed response to waves, with motion lagging slightly behind the water movement. 

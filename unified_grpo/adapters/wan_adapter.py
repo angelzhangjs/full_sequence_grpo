@@ -8,7 +8,7 @@ import torch
 import torch.cuda.amp as amp
 
 from unified_grpo.adapters.base import StepContext, StepOutput, VideoGRPOAdapter
-
+from unified_grpo.lora_utils import get_trainable_lora_parameters, has_lora
 
 @dataclass
 class WanAdapter(VideoGRPOAdapter):
@@ -22,7 +22,6 @@ class WanAdapter(VideoGRPOAdapter):
     - scheduler is FlowUniPC / FlowDPM++ from `wan/utils/fm_solvers*.py`
     - VAE decode uses `WanVAE.decode([latent])` which returns pixels in [-1, 1]
     """
-
     # `pipeline` is expected to be a WanT2V-like object (see Wan2.1/wan/text2video.py)
     # with at least: .device, .model (WanModel), .vae (WanVAE), .vae_stride, .patch_size,
     # .num_train_timesteps, .param_dtype
@@ -136,6 +135,10 @@ class WanAdapter(VideoGRPOAdapter):
         if model is None:
             raise RuntimeError("WanAdapter expects pipeline.model (WanModel).")
 
+        # If LoRA/PEFT is applied, only train LoRA parameters (do NOT unfreeze the base model).
+        if has_lora(model):
+            return get_trainable_lora_parameters(model, verbose_prefix="  [WAN Adapter]")
+
         blocks = getattr(model, "blocks", None)
         if blocks is None:
             raise RuntimeError("WanAdapter expects pipeline.model.blocks to select trainable blocks.")
@@ -177,21 +180,25 @@ class WanAdapter(VideoGRPOAdapter):
         self,
         *,
         latents: torch.Tensor,
-        ctx: StepContext,
+        step_context: StepContext,
         with_grad: bool,
-        rollout_noise_scale: float,
-        rollout_index: int,
         solver_state=None,
     ) -> StepOutput:
         if self._scheduler is None:
             raise RuntimeError("WanAdapter.step() called before get_timesteps(); scheduler is not initialized.")
 
+        # WAN schedulers (especially UniPC) keep important multistep state internally (step_index, model_outputs, etc).
+        # In GRPO we may call `step()` multiple times for the *same* timestep (rollouts + grad recompute).
+        # Therefore we must treat the scheduler as stateful and explicitly restore/snapshot its state per call.
+        if solver_state is not None:
+            self._restore_solver_state(solver_state)
+
         model = getattr(self.pipeline, "model", None)
         if model is None:
             raise RuntimeError("WanAdapter expects pipeline.model (WanModel).")
 
-        # ctx.t is a scalar timestep token (see grpo_core); keep it in Wan2.1's expected form.
-        t = ctx.t
+        # step_context.t is a scalar timestep token (see grpo_core); keep it in Wan2.1's expected form.
+        t = step_context.t
         if not torch.is_tensor(t):
             t = torch.tensor(t, device=self.device(), dtype=torch.float32)
         else:
@@ -199,8 +206,6 @@ class WanAdapter(VideoGRPOAdapter):
 
         # Exploration noise (only for rollouts, not for gradient step)
         lat_in = latents.detach() if not with_grad else latents
-        if (not with_grad) and int(rollout_index) > 0 and float(rollout_noise_scale) > 0:
-            lat_in = lat_in + float(rollout_noise_scale) * torch.randn_like(lat_in)
         
         # WanModel expects a *list* of latents, each shaped [C, F, H, W].
         if lat_in.ndim != 5:
@@ -252,9 +257,53 @@ class WanAdapter(VideoGRPOAdapter):
         )
         next_latents = step_out[0] if isinstance(step_out, (tuple, list)) else step_out
 
-        return StepOutput(next_latents=next_latents, action=noise_pred, x0_latents=None, solver_state=solver_state)
+        new_state = self._capture_solver_state()
+        return StepOutput(next_latents=next_latents, action=noise_pred, x0_latents=None, solver_state=new_state)
+
+    def _capture_solver_state(self) -> Dict[str, Any]:
+        """
+        Capture WAN scheduler internal state needed to continue a trajectory.
+
+        NOTE: We intentionally avoid cloning large tensors; the solver mutates list *containers*
+        but should treat tensors as immutable values. We store tuples and recreate fresh lists on restore.
+        """
+        sched = self._scheduler
+        if sched is None:
+            return {}
+        return {
+            "_step_index": getattr(sched, "_step_index", None),
+            "_begin_index": getattr(sched, "_begin_index", None),
+            "lower_order_nums": getattr(sched, "lower_order_nums", 0),
+            "this_order": getattr(sched, "this_order", None),
+            "last_sample": getattr(sched, "last_sample", None),
+            "model_outputs": tuple(getattr(sched, "model_outputs", []) or []),
+            "timestep_list": tuple(getattr(sched, "timestep_list", []) or []),
+        }
+
+    def _restore_solver_state(self, state: Dict[str, Any]) -> None:
+        """Restore WAN scheduler internal state from a snapshot produced by `_capture_solver_state()`."""
+        sched = self._scheduler
+        if sched is None:
+            return
+        # Scalar counters
+        if "_step_index" in state:
+            setattr(sched, "_step_index", state.get("_step_index", None))
+        if "_begin_index" in state:
+            setattr(sched, "_begin_index", state.get("_begin_index", None))
+        if "lower_order_nums" in state:
+            setattr(sched, "lower_order_nums", state.get("lower_order_nums", 0))
+        if "this_order" in state and hasattr(sched, "this_order"):
+            setattr(sched, "this_order", state.get("this_order", None))
+        # History buffers
+        if "last_sample" in state:
+            setattr(sched, "last_sample", state.get("last_sample", None))
+        if "model_outputs" in state and hasattr(sched, "model_outputs"):
+            setattr(sched, "model_outputs", list(state.get("model_outputs") or []))
+        if "timestep_list" in state and hasattr(sched, "timestep_list"):
+            setattr(sched, "timestep_list", list(state.get("timestep_list") or []))
     
     def decode_for_reward(self, *, latents_or_x0: torch.Tensor, x0_is_patchified: bool) -> torch.Tensor:
+        # Output convention: return per-frame pixel tensor [T, 3, H, W] in [0, 1].
         vae = getattr(self.pipeline, "vae", None)
         if vae is None or not hasattr(vae, "decode"):
             raise RuntimeError("WanAdapter expects pipeline.vae.decode (WanVAE).")
@@ -272,7 +321,7 @@ class WanAdapter(VideoGRPOAdapter):
             vids = vae.decode([lat0.to(device=getattr(vae, "device", self.device()), dtype=torch.float32)])
             vid = vids[0]  # [3, F, H, W] in [-1, 1]
             vid = (vid / 2 + 0.5).clamp(0, 1)
-            vid = vid.permute(1, 0, 2, 3).contiguous().unsqueeze(0)  # [1, F, 3, H, W]
+            vid = vid.permute(1, 0, 2, 3).contiguous()  # [F, 3, H, W]
         
         return vid
     

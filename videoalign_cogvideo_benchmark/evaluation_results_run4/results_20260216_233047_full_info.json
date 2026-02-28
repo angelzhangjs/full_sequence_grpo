@@ -1,0 +1,36 @@
+[
+    {
+        "prompt_en": {
+            "video_id": "cogvideo_baseline",
+            "prompt_en": "A leaf floats down in a loose spiral instead of a straight line."
+        },
+        "dimension": [
+            "aesthetic_quality",
+            "background_consistency",
+            "imaging_quality",
+            "motion_smoothness",
+            "overall_consistency",
+            "subject_consistency"
+        ],
+        "video_list": [
+            "/home/ubuntu/angel-research/videoalign_cogvideo_benchmark/cogvideo_baseline__42.mp4"
+        ]
+    },
+    {
+        "prompt_en": {
+            "video_id": "cogvideo_grpo",
+            "prompt_en": "A leaf floats down in a loose spiral instead of a straight line."
+        },
+        "dimension": [
+            "aesthetic_quality",
+            "background_consistency",
+            "imaging_quality",
+            "motion_smoothness",
+            "overall_consistency",
+            "subject_consistency"
+        ],
+        "video_list": [
+            "/home/ubuntu/angel-research/videoalign_cogvideo_benchmark/cogvideo_grpo__42.mp4"
+        ]
+    }
+]

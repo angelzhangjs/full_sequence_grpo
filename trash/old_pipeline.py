@@ -30,7 +30,7 @@ SEED = 2026
 # ============================================================================
 # Setup Logging to File
 # ============================================================================
-class TeeLogger:
+class WriteLogger:
     """Writes output to both console and file"""
     def __init__(self, filename):
         self.terminal = sys.stdout
@@ -75,7 +75,7 @@ def save_video_to_mp4(video_tensor, out_path, frame_rate: int = 16):
 os.makedirs("grpo", exist_ok=True)  # Create grpo folder if it doesn't exist
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 log_filename = f"grpo/training_log_{timestamp}.txt"
-logger = TeeLogger(log_filename)
+logger = WriteLogger(log_filename)
 sys.stdout = logger
 sys.stderr = logger  # Also capture warnings/errors
 

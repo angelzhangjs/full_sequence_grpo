@@ -4,9 +4,11 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import torch
+from torch.nn.modules import transformer
 
 from unified_grpo.adapters.base import StepContext, StepOutput, VideoGRPOAdapter
-
+from unified_grpo.lora_utils import get_trainable_lora_parameters, has_lora
+from unified_grpo.utils import prepare_rotary_emb
 @dataclass
 class CogVideoXAdapter(VideoGRPOAdapter):
     """
@@ -70,6 +72,13 @@ class CogVideoXAdapter(VideoGRPOAdapter):
         return [t for t in ts]
 
     def prepare_latents(self, *, seed: int) -> torch.Tensor:
+        """ 
+        prepare the initial latents to be used for the first step of the denoising process, which is the input of .step() function. 
+        Args:
+            seed: the seed for the random number generator
+        Returns:
+            latents: the initial latents
+        """
         g = torch.Generator(device=self.device())
         g.manual_seed(int(seed))
 
@@ -101,120 +110,121 @@ class CogVideoXAdapter(VideoGRPOAdapter):
         return latents
 
     def trainable_parameters(self) -> list[torch.nn.Parameter]:
-        tr = getattr(self.pipeline, "transformer", None)
-        if tr is None:
+        transformer = getattr(self.pipeline, "transformer", None)
+        if transformer is None:
             raise RuntimeError("CogVideoXAdapter requires pipeline.transformer")
 
-        # Check if LoRA is applied (PEFT model has special attributes)
-        is_lora = hasattr(tr, 'peft_config') or any('lora_' in n for n, _ in tr.named_parameters())
-        
-        if is_lora:
-            # Return only LoRA parameters
-            print("  [CogVideoX Adapter] Using LoRA parameters for training")
-            lora_params = [p for n, p in tr.named_parameters() if 'lora_' in n.lower() and p.requires_grad]
-            if len(lora_params) == 0:
-                # Ensure LoRA params are trainable
-                for n, p in tr.named_parameters():
-                    if 'lora_' in n.lower():
-                        p.requires_grad_(True)
-                        lora_params.append(p)
-            return lora_params
+        # ==========================================================================
+        # Training mode A: LoRA/PEFT fine-tuning
+        # - If LoRA is attached, we ONLY optimize LoRA params.
+        # - We intentionally do NOT unfreeze the base transformer weights, because that
+        #   defeats the purpose of parameter-efficient fine-tuning and explodes VRAM.
+        # ==========================================================================
+        if has_lora(transformer):
+            return get_trainable_lora_parameters(transformer, verbose_prefix="  [CogVideoX Adapter]")
 
-        if not self.train_transformer_blocks:
-            for p in tr.parameters():
-                p.requires_grad_(True)
-            return [p for p in tr.parameters() if p.requires_grad]
-
-        # Freeze everything first.
-        for p in tr.parameters():
+        # ==========================================================================
+        # Training mode B: Partial fine-tune (only selected blocks)
+        # - Freeze everything first, then unfreeze a chosen set of blocks.
+        # - This is useful when you are NOT using LoRA but still want to limit VRAM.
+        # ==========================================================================
+        for p in transformer.parameters():
             p.requires_grad_(False)
 
         ids = set(int(x) for x in self.train_transformer_blocks)
 
-        # Best case: transformer has transformer_blocks list.
-        blocks = getattr(tr, "transformer_blocks", None)
+        # ========================================================
+        # C1 vs C2 is entirely determined by how that specific model's transformer is implemented/exposed by the pipeline. 
+        # ========================================================
+        # Block selection path C1 (preferred):
+        # - Some transformer implementations expose a `transformer_blocks` list.
+        # - We can reliably unfreeze by iterating blocks by index.
+        blocks = getattr(transformer, "transformer_blocks", None)
         if blocks is not None:
             for i, blk in enumerate(blocks):
                 req = i in ids
                 for p in blk.parameters():
                     p.requires_grad_(req)
-            return [p for p in tr.parameters() if p.requires_grad]
+            return [p for p in transformer.parameters() if p.requires_grad]
 
-        # Fallback: unfreeze by name match.
-        for name, p in tr.named_parameters():
-            for bid in ids:
+        # Block selection path C2 (fallback):
+        # - If there's no `transformer_blocks` list, fall back to name matching.
+        # - This is more fragile (depends on naming conventions), but works for many
+        #   diffusers-like models.
+        for name, p in transformer.named_parameters():
+           for bid in ids:
                 if f"transformer_blocks.{bid}." in name:
                     p.requires_grad_(True)
-        return [p for p in tr.parameters() if p.requires_grad]
-
-    def _prepare_rotary_emb(self, *, latents: torch.Tensor, device: torch.device) -> Optional[torch.Tensor]:
-        # Only needed for some CogVideoX variants.
-        tr = getattr(self.pipeline, "transformer", None)
-        if tr is None:
-            return None
-        cfg = getattr(tr, "config", None)
-        if cfg is None or not getattr(cfg, "use_rotary_positional_embeddings", False):
-            return None
-
-        fn = getattr(self.pipeline, "_prepare_rotary_positional_embeddings", None)
-        if fn is None:
-            # Not available in some diffusers versions; return None and rely on pipeline defaults.
-            return None
-
-        vae_scale_spatial = int(getattr(self.pipeline, "vae_scale_factor_spatial", getattr(self.pipeline, "vae_scale_factor", 8)))
-        # Latents are [B, F, C, H, W]
-        return fn(
-            height=int(latents.size(3) * vae_scale_spatial),
-            width=int(latents.size(4) * vae_scale_spatial),
-            num_frames=int(latents.size(1)),
-            device=device,
-        )
+        return [p for p in transformer.parameters() if p.requires_grad]
 
     def step(
         self,
         *,
         latents: torch.Tensor,
-        ctx: StepContext,
+        step_context: StepContext,
         with_grad: bool,
-        rollout_noise_scale: float,
-        rollout_index: int,
         solver_state=None,
     ) -> StepOutput:
-        
-        tr = getattr(self.pipeline, "transformer", None)
-        if tr is None:
+        """
+        Perform one denoising step using the CogVideoX pipeline.
+
+        Notes:
+        - This function has two phases:
+          1) Transformer forward pass (text-conditioned) -> `noise_pred`
+          2) Scheduler update -> `prev_sample` (next latents) and optional `pred_original_sample` (x0 estimate)
+          
+    Perform one denoising step using the CogVideoX pipeline.
+       Args:
+        latents: the latents to denoise
+        step_context: the step context
+        with_grad: whether to use gradient
+        solver_state: the solver state
+       Returns:
+        StepOutput: the step output
+           next_latents: the next latents
+           action: the action
+           x0_latents: the x0 latents
+           solver_state: the solver states
+           
+        there are two steps in the denoising process:
+        1. the transformer forward pass
+        2. the scheduler step, which returns the previous latents and the predicted original latents
+        """
+        # get the transformer
+        transformer = getattr(self.pipeline, "transformer", None)
+        if transformer is None:
             raise RuntimeError("CogVideoXAdapter requires pipeline.transformer")
 
-        t = ctx.t
+        # get the timestep
+        t = step_context.t
 
-        # CRITICAL: Detach input latents to prevent graph reuse
-        lat_in = latents.detach() if not with_grad else latents
-        if (not with_grad) and int(rollout_index) > 0 and float(rollout_noise_scale) > 0:
-            lat_in = lat_in + float(rollout_noise_scale) * torch.randn_like(lat_in)
+        # detach the input latents to prevent graph reuse
+        latents_input = latents.detach() if not with_grad else latents
 
         do_cfg = self._do_classifier_free_guidance()
-        # Detach prompt embeds (they shouldn't need gradients)
+        # detach the prompt embeds (they shouldn't need gradients)
         encoder_hidden_states = self.prompt_embeds.detach()
         if do_cfg:
             encoder_hidden_states = torch.cat([self.negative_prompt_embeds.detach(), self.prompt_embeds.detach()], dim=0)
 
-        latent_model_input = torch.cat([lat_in] * 2, dim=0) if do_cfg else lat_in
-        # Clone to break any scheduler caching
+        latent_model_input = torch.cat([latents_input] * 2, dim=0) if do_cfg else latents_input
+        # clone to break any scheduler caching
         latent_model_input = self.pipeline.scheduler.scale_model_input(latent_model_input.clone(), t)
 
-        # broadcast timestep to batch dim and ensure correct dtype
+        # broadcast timestep to batch dim and ensure correct dtype, for example, if timestep is a scalar tensor, we need to expand it to a tensor of shape (batch_size, 1)
         timestep = t.expand(latent_model_input.shape[0])
         
-        # Ensure timestep is proper dtype (some schedulers use float32)
+        # ensure timestep is proper dtype (some schedulers use float32)
         if timestep.dtype != latent_model_input.dtype:
             timestep = timestep.to(dtype=latent_model_input.dtype)
 
-        image_rotary_emb = self._prepare_rotary_emb(latents=lat_in, device=latent_model_input.device)
+        # prepare the rotary embeddings (CogVideoX variants that use RoPE)
+        image_rotary_emb = prepare_rotary_emb(self, latents=latents_input, device=latent_model_input.device)
         attention_kwargs = self.attention_kwargs
 
         def _forward() -> torch.Tensor:
             # Ensure all inputs have matching dtypes
-            out = tr(
+            out = transformer(
                 hidden_states=latent_model_input.to(torch.bfloat16),
                 encoder_hidden_states=encoder_hidden_states.to(torch.bfloat16),
                 timestep=timestep.to(torch.bfloat16),
@@ -238,8 +248,11 @@ class CogVideoXAdapter(VideoGRPOAdapter):
 
         extra_step_kwargs = self.extra_step_kwargs or {}
 
-        # scheduler transition
-        step_out = self.pipeline.scheduler.step(noise_pred, t, lat_in, return_dict=True, **extra_step_kwargs)
+        # scheduler transition, simply return value of scheduler.step() for one denoising step. 
+        # return DDIMSchedulerOutput object, which contains the following attributes: 
+        # - prev_sample: the previous latents
+        # - pred_original_sample: the predicted original latents
+        step_out = self.pipeline.scheduler.step(noise_pred, t, latents_input, return_dict=True, **extra_step_kwargs)
 
         next_latents = getattr(step_out, "prev_sample", None)
         if next_latents is None:
@@ -253,6 +266,7 @@ class CogVideoXAdapter(VideoGRPOAdapter):
 
     def decode_for_reward(self, *, latents_or_x0: torch.Tensor, x0_is_patchified: bool) -> torch.Tensor:
         # CogVideoX latents are NOT patchified; ignore x0_is_patchified.
+        # Output convention: return per-frame pixel tensor [T, 3, H, W] in [0, 1].
         lat = latents_or_x0
 
         vae = getattr(self.pipeline, "vae", None)
@@ -269,7 +283,8 @@ class CogVideoXAdapter(VideoGRPOAdapter):
             vid = vae.decode(lat, return_dict=False)[0]  # [B, C, F, H, W] in [-1, 1] (usually)
             vid = (vid / 2 + 0.5).clamp(0, 1)
             vid = vid.permute(0, 2, 1, 3, 4).contiguous()  # [B, F, C, H, W]
-        return vid
+        # Drop batch for reward backends (they operate on frames)
+        return vid[0]
 
     def extra_log_state(self) -> Dict[str, Any]:
         return {
@@ -279,4 +294,3 @@ class CogVideoXAdapter(VideoGRPOAdapter):
             "guidance_scale": float(self.guidance_scale),
             "train_transformer_blocks": self.train_transformer_blocks or [],
         }
-

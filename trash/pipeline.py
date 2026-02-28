@@ -75,7 +75,7 @@ set_seed(SEED, deterministic=DETERMINISTIC)
 # ============================================================================
 # Setup Logging to File
 # ============================================================================
-class TeeLogger:
+class WriteLogger:
     """Writes output to both console and file"""
     def __init__(self, filename):
         self.terminal = sys.stdout
@@ -144,7 +144,7 @@ def save_video_to_mp4(video_tensor, out_path, frame_rate: int = 16):
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 timestamp = RUN_ID
 log_filename = f"{OUTPUT_DIR}/training_log_{timestamp}.txt"
-logger = TeeLogger(log_filename)
+logger = WriteLogger(log_filename)
 sys.stdout = logger
 sys.stderr = logger  # Also capture warnings/errors
 

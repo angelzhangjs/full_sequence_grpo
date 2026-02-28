@@ -1,1 +1,0 @@
-A ball rolls down a gentle slope, gradually speeding up as gravity pulls it forward. 

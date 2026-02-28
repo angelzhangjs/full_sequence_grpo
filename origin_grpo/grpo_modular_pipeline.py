@@ -53,7 +53,7 @@ except ModuleNotFoundError:
     from ltx_video.ltx_video.models.autoencoders.vae_encode import latent_to_pixel_coords  # type: ignore
 
 
-class TeeLogger:
+class WriteLogger:
     """
     Mirror `pipeline.py`'s logger: tee stdout/stderr to a file (line-buffered).
     Captures prints + tracebacks so you can compare GRPO runs deterministically.
@@ -518,7 +518,7 @@ def run_grpo_for_prompt(
                 if torch.cuda.is_available():
                     torch.cuda.manual_seed_all(rollout_seed)
                 rollout_seeds.append(int(rollout_seed))
-                # TeeLogger captures stdout/stderr into training_log_*.txt for reproducibility.
+                # WriteLogger captures stdout/stderr into training_log_*.txt for reproducibility.
                 print(f"\n[GRPO][step={step_idx:03d} r={r:02d}] rollout_seed={rollout_seed}")
 
                 latents_perturbed = latents
@@ -1345,7 +1345,7 @@ def main() -> None:
                 # Match pipeline.py: tee all GRPO prints into training_log_*.txt in the GRPO folder.
                 ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                 log_path = save_base / f"training_log_{ts}.txt"
-                logger = TeeLogger(str(log_path))
+                logger = WriteLogger(str(log_path))
                 old_stdout, old_stderr = sys.stdout, sys.stderr
                 sys.stdout = logger
                 sys.stderr = logger
