@@ -1,0 +1,56 @@
+[
+  {
+    "uid": "PR_008_q1",
+    "question": "Score how faithfully the video depicts \"A room interior shows a glass jar tipping beside a chair\", rather than drifting away from the prompt.",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "projectile"
+  },
+  {
+    "uid": "PR_008_q2",
+    "question": "Score how physically plausible the through-air motion toward impact is for A room interior shows, especially during \"breaking apart on the floor\".",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "projectile"
+  },
+  {
+    "uid": "PR_008_q3",
+    "question": "Score whether the sequence \"A room interior shows a glass jar tipping beside a chair -> breaking apart on the floor\" unfolds in the correct temporal order without skips, teleporting, or abrupt reversals.",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "projectile"
+  },
+  {
+    "uid": "PR_008_q4",
+    "question": "Score whether the video shows target reaction only after visible collision, especially around \"breaking apart on the floor\" and \"breaking apart on the floor\".",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "projectile"
+  },
+  {
+    "uid": "PR_008_q5",
+    "question": "Score how plausible the final outcome \"breaking apart on the floor\" looks given the earlier motion and interactions in the prompt.",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "projectile"
+  },
+  {
+    "uid": "PR_008_q6",
+    "question": "Score the overall physical plausibility of the full prompt \"A room interior shows a glass jar tipping beside a chair and breaking apart on the floor\" as shown in the video.",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "projectile"
+  }
+]

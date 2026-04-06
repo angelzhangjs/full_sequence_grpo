@@ -1,0 +1,1 @@
+ hallway scene shows a superball bouncing along the floor. It rebounds high, clips the wall, and changes direction before bouncing again.

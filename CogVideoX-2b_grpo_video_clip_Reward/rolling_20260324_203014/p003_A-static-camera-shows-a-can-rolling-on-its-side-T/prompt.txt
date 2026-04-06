@@ -1,0 +1,1 @@
+A static camera shows a can rolling on its side. The can wobbles as it rolls, slows down, and finally tips over.

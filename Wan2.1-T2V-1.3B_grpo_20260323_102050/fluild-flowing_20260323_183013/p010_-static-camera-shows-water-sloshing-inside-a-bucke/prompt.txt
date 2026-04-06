@@ -1,0 +1,1 @@
+ static camera shows water sloshing inside a bucket. The water climbs one side of the bucket and then falls back with overlapping waves.

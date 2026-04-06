@@ -1,0 +1,502 @@
+[
+  {
+    "video_id": "FA_001",
+    "prompt_en": "In a New Year living room, a red envelope slips from a shelf, falls to the floor, and lands flat.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p001_In-a-New-Year-living-room-a-red-envelope-slips-fr/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FA_002",
+    "prompt_en": "On a holiday table, a mandarin drops from a fruit tray, hits the bowl below, and settles inside.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p002_On-a-holiday-table-a-mandarin-drops-from-a-fruit-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FA_003",
+    "prompt_en": "Above a doorway, a paper decoration comes loose, falls in front of a red lantern, and lands softly.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p003_Above-a-doorway-a-paper-decoration-comes-loose-f/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FA_004",
+    "prompt_en": "At a dinner table, a chopstick slips from a bowl, drops, and taps against the tabletop.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p004_At-a-dinner-table-a-chopstick-slips-from-a-bowl-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FA_005",
+    "prompt_en": "In a close-up shot, a lucky coin slips from a hand, falls onto the tile floor, and makes a small bounce.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p005_In-a-closeup-shot-a-lucky-coin-slips-from-a-hand/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FA_006",
+    "prompt_en": "On a night street, snow falls through the light of a red lantern and settles on the ground.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p006_On-a-night-street-snow-falls-through-the-light-of/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FA_007",
+    "prompt_en": "Inside a home, a red ribbon decoration drops from a wall hook, lands on a cabinet, and stops moving.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p007_Inside-a-home-a-red-ribbon-decoration-drops-from-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FA_008",
+    "prompt_en": "On a festive street, a firecracker wrapper falls to the wet pavement and sticks to the surface.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p008_On-a-festive-street-a-firecracker-wrapper-falls-t/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FA_009",
+    "prompt_en": "In a courtyard, a paper fortune tag falls from a branch and lands on the stone path.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p009_In-a-courtyard-a-paper-fortune-tag-falls-from-a-b/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FA_010",
+    "prompt_en": "Over a bowl of soup, a dumpling drops from chopsticks back into the broth with a small splash.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p010_Over-a-bowl-of-soup-a-dumpling-drops-from-chopsti/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "PR_001",
+    "prompt_en": "At a holiday table, a small glass ornament is tossed, hits the tabletop, and breaks apart into bright pieces.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p011_At-a-holiday-table-a-small-glass-ornament-is-toss/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "PR_002",
+    "prompt_en": "Toward a wall in a living room, a thin ceramic cup is thrown, hits hard, and shatters into fragments.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p012_Toward-a-wall-in-a-living-room-a-thin-ceramic-cup/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "PR_003",
+    "prompt_en": "Across a kitchen, a glass lid slips through the air, strikes the floor, and breaks into sharp pieces.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p013_Across-a-kitchen-a-glass-lid-slips-through-the-ai/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "PR_004",
+    "prompt_en": "Toward a stone path in a courtyard, a sugar decoration is thrown and breaks apart on impact.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p014_Toward-a-stone-path-in-a-courtyard-a-sugar-decora/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "PR_005",
+    "prompt_en": "At a dessert plate, a brittle candy skewer lands hard on the edge and snaps into small pieces.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p015_At-a-dessert-plate-a-brittle-candy-skewer-lands-h/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "PR_006",
+    "prompt_en": "Toward a red gate, a snowball is thrown in a snowy courtyard and breaks apart in pieces on impact.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p016_Toward-a-red-gate-a-snowball-is-thrown-in-a-snowy/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "PR_007",
+    "prompt_en": "At a family game, a small clay figurine is knocked from the table, hits the floor, and breaks into fragments.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p017_At-a-family-game-a-small-clay-figurine-is-knocked/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "PR_008",
+    "prompt_en": "Toward the floor beside a lantern, a glass marble jar tips and the thin glass breaks apart on impact.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p018_Toward-the-floor-beside-a-lantern-a-glass-marble-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "PR_009",
+    "prompt_en": "Across a tabletop, a porcelain teacup is struck, falls off the edge, and shatters on the ground.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p019_Across-a-tabletop-a-porcelain-teacup-is-struck-f/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "PR_010",
+    "prompt_en": "In a night courtyard, a hand-held firework sprays sparks outward and the glowing pieces scatter in all directions.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p020_In-a-night-courtyard-a-handheld-firework-sprays-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SW_001",
+    "prompt_en": "Outside a shop, a red lantern swings in the evening wind and slowly settles back toward the center.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p021_Outside-a-shop-a-red-lantern-swings-in-the-evenin/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SW_002",
+    "prompt_en": "After the front door closes, a tassel under a doorway decoration swings back and forth and then grows still.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p022_After-the-front-door-closes-a-tassel-under-a-door/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SW_003",
+    "prompt_en": "At a playground, a child on a swing moves forward and back while holding a small lantern.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p023_At-a-playground-a-child-on-a-swing-moves-forward-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SW_004",
+    "prompt_en": "Outside a market stall, a paper sign swings in a gust and rocks back the other way.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p024_Outside-a-market-stall-a-paper-sign-swings-in-a-g/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SW_005",
+    "prompt_en": "By a window, a bamboo chime swings and taps softly before slowing down.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p025_By-a-window-a-bamboo-chime-swings-and-taps-softly/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SW_006",
+    "prompt_en": "On a street, a red ribbon on a bike handlebar swings side to side as the bicycle slows down.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p026_On-a-street-a-red-ribbon-on-a-bike-handlebar-swin/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SW_007",
+    "prompt_en": "In a living room, a small hanging ornament swings after being bumped and then settles.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p027_In-a-living-room-a-small-hanging-ornament-swings-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SW_008",
+    "prompt_en": "Backstage, a dragon dance prop swings gently after someone walks past and then slows.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p028_Backstage-a-dragon-dance-prop-swings-gently-after/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SW_009",
+    "prompt_en": "At a holiday market, a shopping bag swings from a person's wrist as they come to a stop.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p029_At-a-holiday-market-a-shopping-bag-swings-from-a-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SW_010",
+    "prompt_en": "Inside a car, a decorative knot swings from the mirror and gradually settles after the car stops.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p030_Inside-a-car-a-decorative-knot-swings-from-the-mi/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "CP_001",
+    "prompt_en": "At a desk, a foam ball is squeezed flat and then slowly rounds back out.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p031_At-a-desk-a-foam-ball-is-squeezed-flat-and-then-s/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "CP_002",
+    "prompt_en": "On a table, a spring toy is pressed down, released, and vibrates up and down.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p032_On-a-table-a-spring-toy-is-pressed-down-released/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "CP_003",
+    "prompt_en": "At a kitchen sink, a sponge is squeezed thin and then swells back as it is released.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p033_At-a-kitchen-sink-a-sponge-is-squeezed-thin-and-t/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "CP_004",
+    "prompt_en": "In a bathroom, a rubber duck is pressed inward and then pops back with a wobble.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p034_In-a-bathroom-a-rubber-duck-is-pressed-inward-and/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "CP_005",
+    "prompt_en": "On a couch, a pillow is pressed down, dents deeply, and slowly lifts back up.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p035_On-a-couch-a-pillow-is-pressed-down-dents-deeply/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "CP_006",
+    "prompt_en": "On a work desk, a stress ball is squeezed out of shape and then returns to round.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p036_On-a-work-desk-a-stress-ball-is-squeezed-out-of-s/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "CP_007",
+    "prompt_en": "In a kitchen, a soda can is crushed inward and stays bent and folded.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p037_In-a-kitchen-a-soda-can-is-crushed-inward-and-sta/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "CP_008",
+    "prompt_en": "In a backyard, a trampoline mat sags under a step, rebounds upward, and keeps bouncing.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p038_In-a-backyard-a-trampoline-mat-sags-under-a-step/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "CP_009",
+    "prompt_en": "On a kitchen counter, a loaf of bread is pressed flat and then slowly rises back.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p039_On-a-kitchen-counter-a-loaf-of-bread-is-pressed-f/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "CP_010",
+    "prompt_en": "On a street, a car tire rolls over a curb, squashes at the bottom, and rounds out again.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p040_On-a-street-a-car-tire-rolls-over-a-curb-squashe/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SP_001",
+    "prompt_en": "On a holiday table, a spinning coin circles, wobbles, and then falls flat.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p041_On-a-holiday-table-a-spinning-coin-circles-wobbl/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SP_002",
+    "prompt_en": "During a family game, a toy top spins on the wooden floor, tilts, and slows to a stop.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p042_During-a-family-game-a-toy-top-spins-on-the-woode/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SP_003",
+    "prompt_en": "At a desk, a fidget spinner turns beside red decorations and gradually loses speed.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p043_At-a-desk-a-fidget-spinner-turns-beside-red-decor/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SP_004",
+    "prompt_en": "Above a dining table, a bottle flip rotates once, lands upright, and rocks with a wobble.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p044_Above-a-dining-table-a-bottle-flip-rotates-once-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SP_005",
+    "prompt_en": "In a garage, a bicycle wheel spins in the air and slowly loses speed.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p045_In-a-garage-a-bicycle-wheel-spins-in-the-air-and-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SP_006",
+    "prompt_en": "At a fairground, a merry-go-round spins quickly and then slows down.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p046_At-a-fairground-a-merrygoround-spins-quickly-an/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SP_007",
+    "prompt_en": "During a street performance, a plate spins on a stick, begins to wobble, and nearly falls off.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p047_During-a-street-performance-a-plate-spins-on-a-st/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SP_008",
+    "prompt_en": "In a workshop, a drill turns a screw into a wooden sign and slows as it reaches the end.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p048_In-a-workshop-a-drill-turns-a-screw-into-a-wooden/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SP_009",
+    "prompt_en": "At a market, a windmill decoration rotates in the winter wind and then slows between gusts.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p049_At-a-market-a-windmill-decoration-rotates-in-the-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SP_010",
+    "prompt_en": "In a courtyard, a child spins with a sparkler and traces a bright circle of light.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p050_In-a-courtyard-a-child-spins-with-a-sparkler-and-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "RO_001",
+    "prompt_en": "Across a holiday tablecloth, a mandarin rolls after being nudged and slowly comes to rest.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p051_Across-a-holiday-tablecloth-a-mandarin-rolls-afte/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "RO_002",
+    "prompt_en": "In a living room, a small marble rolls down a toy ramp, crosses the floor, and stops near a lantern.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p052_In-a-living-room-a-small-marble-rolls-down-a-toy-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "RO_003",
+    "prompt_en": "Across a kitchen floor, a soda can rolls on its side, wobbles, and tips over.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p053_Across-a-kitchen-floor-a-soda-can-rolls-on-its-si/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "RO_004",
+    "prompt_en": "Along a sidewalk curb, a soccer ball rolls forward and gradually slows to a stop.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p054_Along-a-sidewalk-curb-a-soccer-ball-rolls-forward/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "RO_005",
+    "prompt_en": "Across a kitchen counter, a wooden rolling pin rolls after being bumped and then settles near a bowl.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p055_Across-a-kitchen-counter-a-wooden-rolling-pin-rol/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "RO_006",
+    "prompt_en": "Across a tabletop, a coin rolls on its edge, wobbles, and then falls flat.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p056_Across-a-tabletop-a-coin-rolls-on-its-edge-wobbl/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "RO_007",
+    "prompt_en": "Over a doorway threshold, a suitcase wheel rolls through and bumps over the edge.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p057_Over-a-doorway-threshold-a-suitcase-wheel-rolls-t/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "RO_008",
+    "prompt_en": "Across a wall, a paint roller moves steadily and leaves a smooth band behind it.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p058_Across-a-wall-a-paint-roller-moves-steadily-and-l/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "RO_009",
+    "prompt_en": "Down a neighborhood street, a skateboard rolls past hanging lanterns and carves slightly before slowing.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p059_Down-a-neighborhood-street-a-skateboard-rolls-pas/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "RO_010",
+    "prompt_en": "Beside a festive outdoor market, a barrel rolls over uneven ground and bumps from side to side.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p060_Beside-a-festive-outdoor-market-a-barrel-rolls-ov/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "BO_001",
+    "prompt_en": "On a gym floor, a rubber ball hits hard, rebounds high, and then bounces lower each time until it stops.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p061_On-a-gym-floor-a-rubber-ball-hits-hard-rebounds-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "BO_002",
+    "prompt_en": "At a table tennis game, a ping-pong ball taps the paddle, springs upward, and keeps bouncing in short arcs.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p062_At-a-table-tennis-game-a-pingpong-ball-taps-the-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "BO_003",
+    "prompt_en": "On a basketball court, a basketball hits the ground, rebounds upward, and repeats in a steady rhythm.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p063_On-a-basketball-court-a-basketball-hits-the-groun/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "BO_004",
+    "prompt_en": "In a hallway, a superball bounces high, hits the wall, and ricochets in a new direction.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p064_In-a-hallway-a-superball-bounces-high-hits-the-w/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "BO_005",
+    "prompt_en": "On a tennis court, a tennis ball is thrown against a wall, rebounds back, and kicks upward after landing.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p065_On-a-tennis-court-a-tennis-ball-is-thrown-against/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "BO_006",
+    "prompt_en": "On a table, a small metal ball bearing makes quick tiny bounces and then transitions into a roll.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p066_On-a-table-a-small-metal-ball-bearing-makes-quick/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "BO_007",
+    "prompt_en": "In a living room, a foam ball drops onto a carpet, squashes on impact, and barely bounces back up.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p067_In-a-living-room-a-foam-ball-drops-onto-a-carpet/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "BO_008",
+    "prompt_en": "On a sidewalk, a soccer ball hits the ground, bounces once more, and then skids forward.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p068_On-a-sidewalk-a-soccer-ball-hits-the-ground-boun/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "BO_009",
+    "prompt_en": "Down stone steps, a pebble bounces from one step to the next before rolling away.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p069_Down-stone-steps-a-pebble-bounces-from-one-step-t/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "BO_010",
+    "prompt_en": "On a wooden floor, a metal key lands, flips once, makes a final small bounce, and comes to rest.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p070_On-a-wooden-floor-a-metal-key-lands-flips-once-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FL_001",
+    "prompt_en": "From a pitcher, water pours into tea cups and ripples spread across the surface.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p071_From-a-pitcher-water-pours-into-tea-cups-and-ripp/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FL_002",
+    "prompt_en": "From a spoon, honey drips onto a dessert plate and gathers into a thick pool.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p072_From-a-spoon-honey-drips-onto-a-dessert-plate-and/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FL_003",
+    "prompt_en": "Into black coffee, milk is poured and swirls into pale patterns.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p073_Into-black-coffee-milk-is-poured-and-swirls-into-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FL_004",
+    "prompt_en": "At a kitchen sink, a faucet is turned on and water streams into a basin of dishes.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p074_At-a-kitchen-sink-a-faucet-is-turned-on-and-water/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FL_005",
+    "prompt_en": "Into a hot pan, oil is poured and spreads outward into a shiny layer.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p075_Into-a-hot-pan-oil-is-poured-and-spreads-outward-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FL_006",
+    "prompt_en": "Through a garden stream, water flows around stones and splits into small currents.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p076_Through-a-garden-stream-water-flows-around-stones/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FL_007",
+    "prompt_en": "Along a riverside night market, a small wave washes onto the bank and pulls back.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p077_Along-a-riverside-night-market-a-small-wave-washe/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FL_008",
+    "prompt_en": "Into a glass on a holiday table, soda is poured and foam rises to the top.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p078_Into-a-glass-on-a-holiday-table-soda-is-poured-an/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FL_009",
+    "prompt_en": "Onto a paper sign, red paint is poured and spreads outward across the craft table.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p079_Onto-a-paper-sign-red-paint-is-poured-and-spreads/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FL_010",
+    "prompt_en": "Inside a bucket, water sloshes from side to side while someone carries it through a courtyard.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p080_Inside-a-bucket-water-sloshes-from-side-to-side-w/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FT_001",
+    "prompt_en": "In a garden stream, a leaf floats on the water, drifts forward, and circles in a small eddy.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p081_In-a-garden-stream-a-leaf-floats-on-the-water-dr/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FT_002",
+    "prompt_en": "In a puddle after the rain, a paper boat floats, rocks gently, and then levels out.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p082_In-a-puddle-after-the-rain-a-paper-boat-floats-r/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FT_003",
+    "prompt_en": "In a bathtub, a rubber duck floats and turns slowly on the water.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p083_In-a-bathtub-a-rubber-duck-floats-and-turns-slowl/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FT_004",
+    "prompt_en": "In a festive drink, an ice cube floats near the glass and slowly rotates.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p084_In-a-festive-drink-an-ice-cube-floats-near-the-gl/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FT_005",
+    "prompt_en": "In a sink, a bottle cap floats in water and drifts toward the drain.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p085_In-a-sink-a-bottle-cap-floats-in-water-and-drifts/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FT_006",
+    "prompt_en": "In a bucket, a ping-pong ball floats, bobs up and down, and slides sideways with the water.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p086_In-a-bucket-a-pingpong-ball-floats-bobs-up-and-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FT_007",
+    "prompt_en": "In a basin, a small sponge floats and tips slightly as one side gets wet.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p087_In-a-basin-a-small-sponge-floats-and-tips-slightl/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FT_008",
+    "prompt_en": "In a pool at a backyard party, a foam cup floats and glides across the surface.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p088_In-a-pool-at-a-backyard-party-a-foam-cup-floats-a/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FT_009",
+    "prompt_en": "Under red lanterns in a courtyard, a soap bubble floats upward, drifts, and then pops.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p089_Under-red-lanterns-in-a-courtyard-a-soap-bubble-f/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "FT_010",
+    "prompt_en": "In a bowl of punch, a slice of orange floats and rotates slowly near the edge.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p090_In-a-bowl-of-punch-a-slice-of-orange-floats-and-r/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SL_001",
+    "prompt_en": "Into a pond at night, a stone drops, throws up a splash, and sends ripples under lantern reflections.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p091_Into-a-pond-at-night-a-stone-drops-throws-up-a-s/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SL_002",
+    "prompt_en": "Into a puddle on a festive street, a foot steps and water sprays outward in all directions.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p092_Into-a-puddle-on-a-festive-street-a-foot-steps-an/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SL_003",
+    "prompt_en": "On a holiday table, a cup tips over and tea splashes across the surface and over the edge.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p093_On-a-holiday-table-a-cup-tips-over-and-tea-splash/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SL_004",
+    "prompt_en": "Back into the river, a fish jumps and throws up a burst of spray.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p094_Back-into-the-river-a-fish-jumps-and-throws-up-a-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SL_005",
+    "prompt_en": "Into a backyard pool, a ball is tossed and makes a deep splash with water rising upward.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p095_Into-a-backyard-pool-a-ball-is-tossed-and-makes-a/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SL_006",
+    "prompt_en": "On a rainy shopfront street, raindrops hit a puddle and tiny splashes overlap across the surface.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p096_On-a-rainy-shopfront-street-raindrops-hit-a-puddl/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SL_007",
+    "prompt_en": "From a paintbrush on a calligraphy table, water flicks outward and scatters into droplets.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p097_From-a-paintbrush-on-a-calligraphy-table-water-fl/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SL_008",
+    "prompt_en": "Against a rock on a riverside walkway, a wave bursts into white spray and falls back down.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p098_Against-a-rock-on-a-riverside-walkway-a-wave-burs/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SL_009",
+    "prompt_en": "Across a courtyard stone floor, a bucket of water is poured and splashes in all directions.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p099_Across-a-courtyard-stone-floor-a-bucket-of-water-/baseline/baseline.mp4"
+  },
+  {
+    "video_id": "SL_010",
+    "prompt_en": "Past a New Year event by the lake, a fast boat passes and throws spray up from the bow.",
+    "source_video": "/lambda/nfs/angel-research/LTX-Video_grpo_20260327_072006/newyear_physics_prompts_100_20260327_072006/p100_Past-a-New-Year-event-by-the-lake-a-fast-boat-pas/baseline/baseline.mp4"
+  }
+]

@@ -1,0 +1,1 @@
+ static camera shows a soccer ball rolling over grass. The ball moves forward, makes small hops on the uneven ground, and gradually slows.

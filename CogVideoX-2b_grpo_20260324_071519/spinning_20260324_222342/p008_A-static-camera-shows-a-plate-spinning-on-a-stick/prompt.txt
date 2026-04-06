@@ -1,0 +1,1 @@
+A static camera shows a plate spinning on a stick. The plate stays balanced while turning, starts to wobble, and then falls off.

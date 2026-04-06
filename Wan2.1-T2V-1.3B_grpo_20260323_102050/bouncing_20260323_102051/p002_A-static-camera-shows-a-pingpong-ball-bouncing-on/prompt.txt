@@ -1,0 +1,1 @@
+A static camera shows a ping-pong ball bouncing on a paddle. The ball rebounds lightly after each tap and follows small clean arcs through the air.

@@ -1,6 +1,8 @@
 #!/bin/bash
-# Batch processing: Run GRPO for ALL prompts in a file (LTX).
-# Creates one output folder per prompt (baseline + GRPO).
+# Batch processing: Run GRPO for LTX on physics prompt suites.
+# Default: every *.txt under basic_physics_prompts_ltx/ (sorted), one batch subfolder per file.
+# Override with PROMPTS_FILE=/path/to/one.txt for a single file.
+# Optional: PROMPTS_DIR=other/dir to glob *.txt elsewhere (when PROMPTS_FILE is unset).
 
 set -euo pipefail
 
@@ -13,8 +15,21 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # Prevent user-site packages (~/.local) from shadowing the conda env.
 export PYTHONNOUSERSITE=1
 
+SAVE_SNAPSHOTS="${SAVE_SNAPSHOTS:-1}"
+VIDEO_SNAPSHOT_SH="${REPO_ROOT}/scripts/video_to_snapshot.sh"
+SAVE_KEYFRAME_STRIP="${SAVE_KEYFRAME_STRIP:-1}"
+KEYFRAME_STRIP_FRAMES="${KEYFRAME_STRIP_FRAMES:-5}"
+KEYFRAME_STRIP_SH="${REPO_ROOT}/scripts/save_prompt_keyframe_strips.sh"
+SAVE_DENOISING_STRIP="${SAVE_DENOISING_STRIP:-0}"
+SAVE_CHECKPOINTS="${SAVE_CHECKPOINTS:-1}"
+
+# Single file mode: set PROMPTS_FILE=path/to/prompts.txt (one prompt per line).
+# Default: unset PROMPTS_FILE and use all *.txt in PROMPTS_DIR (basic_physics_prompts_ltx).
+PROMPTS_FILE="${PROMPTS_FILE:-}"
+PROMPTS_DIR="${PROMPTS_DIR:-basic_physics_prompts_ltx}"
+
 echo "======================================================================"
-echo "BATCH GRPO TRAINING - LTX - ALL PROMPTS"
+echo "BATCH GRPO TRAINING - LTX"
 echo "======================================================================"
 echo ""
 
@@ -37,7 +52,7 @@ USE_LORA="${USE_LORA:-1}"         # 1 -> add --use-lora, 0 -> full/partial finet
 LORA_BLOCKS="${LORA_BLOCKS:-last}"
 LORA_RANK="${LORA_RANK:-4}"
 LORA_ALPHA="${LORA_ALPHA:-8}"
-REWARD_BACKEND="${REWARD_BACKEND:-clip_dino}"  # clip_dino | qwen
+REWARD_BACKEND="${REWARD_BACKEND:-image_clip}"  # image_clip | xclip | qwen
 RUN_BASELINE="${RUN_BASELINE:-1}"              # 1 -> baseline mp4, 0 -> skip baseline
 NEGATIVE_PROMPT="${NEGATIVE_PROMPT:-}"
 # Baseline pipeline config for LTX's reference inference script
@@ -48,17 +63,46 @@ if [[ "$MODEL_TYPE" != "ltx" ]]; then
     exit 2
 fi
 
-# Input file
-PROMPTS_FILE="${PROMPTS_FILE:-origin_grpo/newyear_prompts.txt}"
-if [[ ! -f "${PROMPTS_FILE}" ]]; then
-  echo "❌ PROMPTS_FILE not found: ${PROMPTS_FILE}" >&2
-  exit 1
+if [[ -n "$PROMPTS_FILE" ]]; then
+    if [[ "${PROMPTS_FILE}" != /* ]]; then
+        PROMPTS_FILE="${REPO_ROOT}/${PROMPTS_FILE}"
+    fi
+    if [[ ! -f "$PROMPTS_FILE" ]]; then
+        echo "ERROR: Prompt file not found: $PROMPTS_FILE" >&2
+        exit 1
+    fi
+    PROMPT_FILES=("$PROMPTS_FILE")
+    echo "Using single prompt file: $PROMPTS_FILE"
+else
+    if [[ "${PROMPTS_DIR}" != /* ]]; then
+        PROMPTS_DIR="${REPO_ROOT}/${PROMPTS_DIR}"
+    fi
+    if [[ ! -d "$PROMPTS_DIR" ]]; then
+        echo "ERROR: PROMPTS_DIR not found: $PROMPTS_DIR" >&2
+        echo "       Set PROMPTS_DIR or PROMPTS_FILE=path/to/prompts.txt" >&2
+        exit 1
+    fi
+    shopt -s nullglob
+    _ltx_pf=("${PROMPTS_DIR}"/*.txt)
+    shopt -u nullglob
+    if [[ ${#_ltx_pf[@]} -eq 0 ]]; then
+        echo "ERROR: No .txt files in $PROMPTS_DIR" >&2
+        exit 1
+    fi
+    readarray -t PROMPT_FILES < <(printf '%s\n' "${_ltx_pf[@]}" | sort)
+    echo "Using LTX physics suite: ${PROMPTS_DIR}/*.txt"
+    echo "  - files: ${#PROMPT_FILES[@]}"
+    for _f in "${PROMPT_FILES[@]}"; do
+        echo "    - $(basename "$_f")"
+    done
 fi
-# Count non-empty prompts for nicer progress reporting.
-TOTAL_PROMPTS="$(grep -cve '^[[:space:]]*$' "${PROMPTS_FILE}" || true)"
 
-echo "Found $TOTAL_PROMPTS prompts in $PROMPTS_FILE"
-echo "This will take approximately $((TOTAL_PROMPTS * 15)) minutes"
+TOTAL_FILES=${#PROMPT_FILES[@]}
+TOTAL_LINES_ALL=0
+for _f in "${PROMPT_FILES[@]}"; do
+    TOTAL_LINES_ALL=$((TOTAL_LINES_ALL + $(grep -cve '^[[:space:]]*$' "$_f" || true)))
+done
+echo "  - total non-empty prompt lines (all files): $TOTAL_LINES_ALL"
 echo ""
 
 # Non-interactive mode:
@@ -76,8 +120,12 @@ else
     fi
 fi
 
-# Create batch output directory
-BATCH_DIR="./batch_grpo_$(date +%Y%m%d_%H%M%S)"
+# Create batch output directory: <model_name>_grpo_<timestep>
+# Model name = last component of MODEL_PATH (e.g. Lightricks/LTX-Video -> LTX-Video), sanitized for dirname
+MODEL_NAME="${MODEL_PATH##*/}"
+MODEL_NAME="${MODEL_NAME//\//-}"
+BATCH_TIMESTEP=$(date +%Y%m%d_%H%M%S)
+BATCH_DIR="./${MODEL_NAME}_grpo_${BATCH_TIMESTEP}"
 mkdir -p "$BATCH_DIR"
 
 echo ""
@@ -85,105 +133,142 @@ echo "Batch output: $BATCH_DIR"
 echo "======================================================================"
 echo ""
 
-# Loop over each prompt
-LINE_NUM=0
-PROMPT_IDX=0
-while IFS= read -r PROMPT || [ -n "$PROMPT" ]; do
-    LINE_NUM=$((LINE_NUM + 1))
-    
-    # Skip empty lines
-    if [[ -z "${PROMPT//[[:space:]]/}" ]]; then
-        continue
-    fi 
-    PROMPT_IDX=$((PROMPT_IDX + 1))
+TOTAL_PROMPTS_PROCESSED=0
+FILE_INDEX=0
+
+# Loop over prompt file(s)
+for PROMPTS_FILE in "${PROMPT_FILES[@]}"; do
+    FILE_INDEX=$((FILE_INDEX + 1))
+    FILE_BASE=$(basename "$PROMPTS_FILE" .txt)
+    # Output folder for this file: filename + current timestamp
+    TIMESTEP=$(date +%Y%m%d_%H%M%S)
+    OUTPUT_TOP_REL="${BATCH_DIR}/${FILE_BASE}_${TIMESTEP}"
+    mkdir -p "$OUTPUT_TOP_REL"
+
+    TOTAL_PROMPTS="$(grep -cve '^[[:space:]]*$' "${PROMPTS_FILE}" || true)"
     echo ""
-    echo "======================================================================"
-    echo "Prompt $PROMPT_IDX/$TOTAL_PROMPTS"
-    echo "======================================================================"
-    echo "$PROMPT"
+    echo "######################################################################"
+    echo "FILE $FILE_INDEX/$TOTAL_FILES: $PROMPTS_FILE -> $OUTPUT_TOP_REL"
+    echo "######################################################################"
     echo ""
-    
-    # Create output directory for this prompt
-    # Sanitize prompt for directory name (first 50 chars, safe characters)
-    PROMPT_SHORT=$(echo "$PROMPT" | head -c 50 | tr -cd '[:alnum:] ' | tr ' ' '-')
-    PROMPT_ID="p$(printf '%03d' $PROMPT_IDX)"
-    OUTPUT_DIR_REL="$BATCH_DIR/${PROMPT_ID}_${PROMPT_SHORT}"
-    # Use an absolute output dir so baseline + GRPO always write under the same `batch_grpo_...` tree,
-    # regardless of any `cd` inside called scripts.
-    OUTPUT_DIR="$(python3 - "$OUTPUT_DIR_REL" <<'PY'
+
+    # Loop over each prompt in this file
+    LINE_NUM=0
+    PROMPT_IDX=0
+    while IFS= read -r PROMPT || [ -n "$PROMPT" ]; do
+        LINE_NUM=$((LINE_NUM + 1))
+
+        # Skip empty lines
+        if [[ -z "${PROMPT//[[:space:]]/}" ]]; then
+            continue
+        fi
+        PROMPT_IDX=$((PROMPT_IDX + 1))
+        echo ""
+        echo "======================================================================"
+        echo "Prompt $PROMPT_IDX/$TOTAL_PROMPTS (file: $FILE_BASE)"
+        echo "======================================================================"
+        echo "$PROMPT"
+        echo ""
+
+        # Create output directory for this prompt under this file's folder
+        PROMPT_SHORT=$(echo "$PROMPT" | head -c 50 | tr -cd '[:alnum:] ' | tr ' ' '-')
+        PROMPT_ID="p$(printf '%03d' $PROMPT_IDX)"
+        OUTPUT_DIR_REL="${OUTPUT_TOP_REL}/${PROMPT_ID}_${PROMPT_SHORT}"
+        # Use an absolute output dir so baseline + GRPO always write under the same tree
+        OUTPUT_DIR="$(python3 - "$OUTPUT_DIR_REL" <<'PY'
 import os, sys
 print(os.path.abspath(sys.argv[1]))
 PY
 )"
-    
-    mkdir -p "$OUTPUT_DIR"
+        mkdir -p "$OUTPUT_DIR"
 
-    # Save prompt text for reference (early, so even failures keep prompt.txt)
-    echo "$PROMPT" > "$OUTPUT_DIR/newyear_prompts.txt"
+        # Save prompt text for reference
+        echo "$PROMPT" > "$OUTPUT_DIR/prompt.txt"
 
-    # ======================================================================
-    # Step 1/2: Run LTX baseline (pretrained model)
-    # ======================================================================
-    if [[ "${RUN_BASELINE}" == "1" ]]; then
-        echo "Step 1/2: Generating baseline video (LTX inference.py)..."
-        mkdir -p "$OUTPUT_DIR/baseline"
+        # ======================================================================
+        # Step 1/2: Run LTX baseline (pretrained model)
+        # ======================================================================
+        if [[ "${RUN_BASELINE}" == "1" ]]; then
+            echo "Step 1/2: Generating baseline video (LTX inference.py)..."
+            mkdir -p "$OUTPUT_DIR/baseline"
 
-        PROMPT="$PROMPT" \
-        OUTPUT_DIR="$OUTPUT_DIR/baseline" \
-        SEED="$SEED" \
-        HEIGHT="$HEIGHT" \
-        WIDTH="$WIDTH" \
-        NUM_FRAMES="$NUM_FRAMES" \
-        FPS="$FPS" \
-        NEGATIVE_PROMPT="$NEGATIVE_PROMPT" \
-        LTX_PIPELINE_CONFIG="$LTX_PIPELINE_CONFIG" \
-        bash "${REPO_ROOT}/unified_grpo/baseline/ltx_baseline.sh" || {
-            echo "⚠️ Baseline failed for prompt $PROMPT_IDX, continuing to GRPO..."
-        }
+            PROMPT="$PROMPT" \
+            OUTPUT_DIR="$OUTPUT_DIR/baseline" \
+            SEED="$SEED" \
+            HEIGHT="$HEIGHT" \
+            WIDTH="$WIDTH" \
+            NUM_FRAMES="$NUM_FRAMES" \
+            FPS="$FPS" \
+            NEGATIVE_PROMPT="$NEGATIVE_PROMPT" \
+            LTX_PIPELINE_CONFIG="$LTX_PIPELINE_CONFIG" \
+            bash "${REPO_ROOT}/unified_grpo/baseline/ltx_baseline.sh" || {
+                echo "⚠️ Baseline failed for prompt $PROMPT_IDX, continuing to GRPO..."
+            }
 
-        if [[ -f "$OUTPUT_DIR/baseline/baseline.mp4" ]]; then
-            echo "✅ Baseline saved: $OUTPUT_DIR/baseline/baseline.mp4"
+            if [[ -f "$OUTPUT_DIR/baseline/baseline.mp4" ]]; then
+                echo "✅ Baseline saved: $OUTPUT_DIR/baseline/baseline.mp4"
+                if [[ "${SAVE_SNAPSHOTS}" == "1" && -f "${VIDEO_SNAPSHOT_SH}" ]]; then
+                    bash "${VIDEO_SNAPSHOT_SH}" "$OUTPUT_DIR/baseline/baseline.mp4" || true
+                fi
+            fi
+            echo ""
         fi
-        echo ""
-    fi
 
-    # ======================================================================
-    # Step 2: Run GRPO Training
-    # ======================================================================
-    echo "Step 2/2: Running GRPO training..."
-    
-    cmd=(python "${REPO_ROOT}/unified_grpo/run.py"
-        --model-type "$MODEL_TYPE"
-        --model-path "$MODEL_PATH"
-        --prompt "$PROMPT"
-        --reward-backend "$REWARD_BACKEND"
-        --gradient-checkpointing
-        --height "$HEIGHT"
-        --width "$WIDTH"
-        --num-frames "$NUM_FRAMES"
-        --guidance-scale "$GUIDANCE_SCALE"
-        --num-inference-steps "$NUM_INFERENCE_STEPS"
-        --num-grpo-steps "$NUM_GRPO_STEPS"
-        --num-rollouts "$NUM_ROLLOUTS"
-        --lr "$LR"
-        --seed "$SEED"
-        --unfreeze-percentage "$UNFREEZE_PERCENTAGE"
-        --output-dir "$OUTPUT_DIR/grpo"
-    )
+        # ======================================================================
+        # Step 2: Run GRPO Training
+        # ======================================================================
+        echo "Step 2/2: Running GRPO training..."
 
-    if [[ "$USE_LORA" == "1" ]]; then
-        cmd+=(--use-lora --lora-blocks "$LORA_BLOCKS" --lora-rank "$LORA_RANK" --lora-alpha "$LORA_ALPHA")
-    fi
+        cmd=(python "${REPO_ROOT}/unified_grpo/run.py"
+            --model-type "$MODEL_TYPE"
+            --model-path "$MODEL_PATH"
+            --prompt "$PROMPT"
+            --reward-backend "$REWARD_BACKEND"
+            --gradient-checkpointing
+            --height "$HEIGHT"
+            --width "$WIDTH"
+            --num-frames "$NUM_FRAMES"
+            --guidance-scale "$GUIDANCE_SCALE"
+            --num-inference-steps "$NUM_INFERENCE_STEPS"
+            --num-grpo-steps "$NUM_GRPO_STEPS"
+            --num-rollouts "$NUM_ROLLOUTS"
+            --lr "$LR"
+            --seed "$SEED"
+            --unfreeze-percentage "$UNFREEZE_PERCENTAGE"
+            --output-dir "$OUTPUT_DIR/grpo"
+        )
+        if [[ "${SAVE_CHECKPOINTS}" == "1" ]]; then
+            cmd+=(--save-checkpoint-dir "$OUTPUT_DIR/grpo/checkpoint")
+        fi
 
-    "${cmd[@]}" || {
+        if [[ "$USE_LORA" == "1" ]]; then
+            cmd+=(--use-lora --lora-blocks "$LORA_BLOCKS" --lora-rank "$LORA_RANK" --lora-alpha "$LORA_ALPHA")
+        fi
+
+        if [[ "${SAVE_DENOISING_STRIP}" == "1" ]]; then
+            cmd+=(--save-denoising-strip-png --save-denoising-step-snapshots)
+        fi
+
+        "${cmd[@]}" || {
             echo "⚠️ GRPO failed for prompt $PROMPT_IDX, continuing..."
             continue
         }
-    
-    echo "✅ GRPO complete for prompt $PROMPT_IDX"
-    echo ""
-    
-done < "$PROMPTS_FILE"
+
+        echo "✅ GRPO complete for prompt $PROMPT_IDX"
+        if [[ "${SAVE_SNAPSHOTS}" == "1" && -f "${VIDEO_SNAPSHOT_SH}" ]]; then
+            for v in "$OUTPUT_DIR/grpo"/*_grpo.mp4; do
+                [[ -f "$v" ]] || continue
+                bash "${VIDEO_SNAPSHOT_SH}" "$v" || true
+            done
+        fi
+        if [[ "${SAVE_KEYFRAME_STRIP}" == "1" && -f "${KEYFRAME_STRIP_SH}" ]]; then
+            bash "${KEYFRAME_STRIP_SH}" "$OUTPUT_DIR" "${KEYFRAME_STRIP_FRAMES}" || true
+        fi
+        echo ""
+        TOTAL_PROMPTS_PROCESSED=$((TOTAL_PROMPTS_PROCESSED + 1))
+
+    done < "$PROMPTS_FILE"
+done
 
 # ======================================================================
 # Summary
@@ -193,19 +278,19 @@ echo "======================================================================"
 echo "BATCH PROCESSING COMPLETE! 🎉"
 echo "======================================================================"
 echo ""
-echo "Processed $LINE_NUM prompts"
+echo "Processed $TOTAL_PROMPTS_PROCESSED prompts across $TOTAL_FILES file(s)"
 echo "Output: $BATCH_DIR/"
 echo ""
 echo "Structure:"
-echo "  batch_grpo_YYYYMMDD_HHMMSS/"
-echo "  ├── p001_*/"
-echo "  │   ├── baseline/baseline.mp4"
-echo "  │   ├── grpo/ltx_grpo.mp4"
-echo "  │   ├── prompt.txt"
-echo "  │   └── newyear_prompts.txt"
-echo "  ├── p002_*/"
-echo "  │   └── ..."
-echo "  └── ..."
+echo "  <model_name>_grpo_YYYYMMDD_HHMMSS/"
+echo "  └── <stem>_YYYYMMDD_HHMMSS/   # one folder per .txt (e.g. bouncing_, falling_, ...)"
+echo "      ├── p001_*/"
+echo "      │   ├── baseline/baseline.mp4 (+ *_snapshot.png)"
+echo "      │   ├── grpo/ltx_grpo.mp4 (+ *_snapshot.png)"
+echo "      │   ├── baseline_keyframes.png, grpo_keyframes.png (${KEYFRAME_STRIP_FRAMES} frames each, if SAVE_KEYFRAME_STRIP=1)"
+echo "      │   ├── grpo/checkpoint/"
+echo "      │   └── prompt.txt"
+echo "      └── ..."
 echo ""
 echo "Compare baseline vs GRPO for each prompt!"
 echo "======================================================================"

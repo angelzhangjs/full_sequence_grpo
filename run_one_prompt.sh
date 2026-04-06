@@ -39,8 +39,9 @@ LORA_BLOCKS="${LORA_BLOCKS:-last}"              # "last" uses --unfreeze-percent
 LORA_RANK="${LORA_RANK:-4}"
 LORA_ALPHA="${LORA_ALPHA:-8}"
 UNFREEZE_PERCENTAGE="${UNFREEZE_PERCENTAGE:-0.20}"
-REWARD_BACKEND="${REWARD_BACKEND:-clip_dino}"   # clip_dino | qwen
+REWARD_BACKEND="${REWARD_BACKEND:-image_clip}"   # image_clip | xclip | qwen
 RUN_BASELINE="${RUN_BASELINE:-1}"               # 1 -> also save baseline mp4 (CogVideo cli), 0 -> skip baseline
+SAVE_DENOISING_STRIP="${SAVE_DENOISING_STRIP:-0}"  # 1 -> grpo/denoising_trajectory_strip.png (one wide PNG of all steps)
 
 echo "Prompt: $PROMPT"
 echo "Output: $OUTPUT_DIR"
@@ -121,6 +122,10 @@ cmd=(python "/home/ubuntu/angel-research/unified_grpo/run.py"
 # LoRA: default ON. If enabled, apply LoRA to selected blocks via --lora-blocks.
 if [[ "$USE_LORA" == "1" ]]; then
   cmd+=(--use-lora --lora-blocks "$LORA_BLOCKS" --lora-rank "$LORA_RANK" --lora-alpha "$LORA_ALPHA")
+fi
+
+if [[ "${SAVE_DENOISING_STRIP}" == "1" ]]; then
+  cmd+=(--save-denoising-strip-png --save-denoising-step-snapshots)
 fi
 
 echo "Running:"

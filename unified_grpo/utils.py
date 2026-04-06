@@ -78,6 +78,15 @@ class WriteLogger:
         self.terminal.flush()
         self.log.flush()
 
+    def isatty(self) -> bool:
+        term_isatty = getattr(self.terminal, "isatty", None)
+        if callable(term_isatty):
+            try:
+                return bool(term_isatty())
+            except Exception:
+                return False
+        return False
+
     def close(self) -> None:
         self.log.close()
 
@@ -137,11 +146,95 @@ def _video_tensor_to_thwc_uint8(video: "torch.Tensor") -> "tuple[object, float, 
     return thwc_u8, pre_min, pre_max
 
 
+def video_tensor_to_middle_frame_uint8(video: "torch.Tensor") -> "object":
+    """
+    From a decoded video tensor (adapter.decode_for_reward output), take the middle temporal frame.
+
+    Returns H×W×3 uint8 numpy array (RGB).
+    """
+    thwc, _, _ = _video_tensor_to_thwc_uint8(video)
+    t = int(thwc.shape[0])
+    mid = max(0, t // 2)
+    return thwc[mid]
+
+
+def save_rgb_frame_png(frame_hw3: "object", out_path: Path) -> Path:
+    """
+    Save one RGB uint8 frame shaped [H, W, 3] as a PNG.
+    """
+    import numpy as np
+    from PIL import Image
+
+    arr = np.asarray(frame_hw3)
+    if arr.ndim != 3 or arr.shape[2] != 3:
+        raise ValueError(f"Expected H×W×3 frame, got shape {arr.shape}")
+
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    Image.fromarray(arr.astype(np.uint8)).save(str(out_path), optimize=True)
+    return out_path
+
+
+def save_denoising_trajectory_strip_png(
+    frames_hw3: "list",
+    out_path: Path,
+    *,
+    max_panel_height: int = 280,
+) -> Path:
+    """
+    Concatenate many RGB uint8 [H,W,3] panels horizontally into one wide PNG.
+
+    Each panel is resized so height <= max_panel_height (aspect preserved), then
+    padded to a common height so the strip is a single rectangle.
+    """
+    import numpy as np
+    from PIL import Image
+
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if not frames_hw3:
+        raise ValueError("save_denoising_trajectory_strip_png: empty frame list")
+
+    resized: list = []
+    for im in frames_hw3:
+        arr = np.asarray(im)
+        if arr.ndim != 3 or arr.shape[2] != 3:
+            raise ValueError(f"Expected H×W×3 uint8 frame, got shape {arr.shape}")
+        h, w = int(arr.shape[0]), int(arr.shape[1])
+        if h <= 0 or w <= 0:
+            continue
+        if h > int(max_panel_height):
+            new_h = int(max_panel_height)
+            new_w = max(1, int(round(w * new_h / h)))
+        else:
+            new_h, new_w = h, w
+        pil = Image.fromarray(arr)
+        pil = pil.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        resized.append(np.array(pil))
+
+    if not resized:
+        raise ValueError("save_denoising_trajectory_strip_png: no valid frames after resize")
+
+    mh = max(int(r.shape[0]) for r in resized)
+    padded: list = []
+    for r in resized:
+        h = int(r.shape[0])
+        if h < mh:
+            pad = np.zeros((mh - h, r.shape[1], 3), dtype=np.uint8)
+            r = np.vstack([r, pad])
+        padded.append(r)
+
+    strip = np.concatenate(padded, axis=1)
+    Image.fromarray(strip).save(str(out_path), optimize=True)
+    return out_path
+
+
 def save_video_tensor_as_mp4(
     *,
     video: "torch.Tensor",
     mp4_path: Path,
-    fps: int = 8,
+    fps: float = 8.0,
     codec: str = "libx264",
     quality: int = 8,
     verbose: bool = True,
@@ -169,7 +262,7 @@ def save_video_tensor_as_mp4(
             "  pip install imageio imageio-ffmpeg\n"
         ) from e
 
-    writer = imageio.get_writer(str(mp4_path), fps=int(fps), codec=str(codec), quality=int(quality))
+    writer = imageio.get_writer(str(mp4_path), fps=float(fps), codec=str(codec), quality=int(quality))
     try:
         for frame in video_u8:
             writer.append_data(frame)

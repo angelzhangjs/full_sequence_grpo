@@ -1,0 +1,1 @@
+Paint is poured on a canvas; it spreads, the edge thickens, then slowly creeps outward, forming rivulets that branch and merge.

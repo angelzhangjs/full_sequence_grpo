@@ -1,0 +1,1 @@
+A pebble bounces down stairs; it strikes a step, hops to the next, rattles rapidly, then lands at the bottom and rolls away.

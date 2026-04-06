@@ -1,0 +1,1 @@
+ static camera shows a paint roller moving across a wall. The roller turns steadily and leaves a visible band of paint behind it.

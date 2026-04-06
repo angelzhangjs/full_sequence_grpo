@@ -1,0 +1,1 @@
+A static camera shows a marble rolling down a ramp. The marble accelerates downhill, leaves the end of the ramp, lands, and then rolls to a stop.

@@ -1,0 +1,1 @@
+ static camera shows a coin slipping from a hand. The coin flips in the air, hits the floor, and makes two small bounces.

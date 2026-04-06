@@ -1,0 +1,56 @@
+[
+  {
+    "uid": "FL_009_q1",
+    "question": "Score how faithfully the video depicts \"red paint is poured\" in the setting \"Onto a paper sign\", rather than drifting away from the prompt.",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "fluid_flowing"
+  },
+  {
+    "uid": "FL_009_q2",
+    "question": "Score how physically plausible the continuous liquid flow and shape change is for red paint is poured, especially during \"spreads outward across the craft table\".",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "fluid_flowing"
+  },
+  {
+    "uid": "FL_009_q3",
+    "question": "Score whether the sequence \"red paint is poured -> spreads outward across the craft table\" unfolds in the correct temporal order without skips, teleporting, or abrupt reversals.",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "fluid_flowing"
+  },
+  {
+    "uid": "FL_009_q4",
+    "question": "Score whether the video shows flow changes caused by visible source, gravity, or surface interaction, especially around \"spreads outward across the craft table\" and \"spreads outward across the craft table\".",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "fluid_flowing"
+  },
+  {
+    "uid": "FL_009_q5",
+    "question": "Score how plausible the final outcome \"spreads outward across the craft table\" looks given the earlier motion and interactions in the prompt.",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "fluid_flowing"
+  },
+  {
+    "uid": "FL_009_q6",
+    "question": "Score the overall physical plausibility of the full prompt \"Onto a paper sign, red paint is poured and spreads outward across the craft table\" as shown in the video.",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "fluid_flowing"
+  }
+]

@@ -1,0 +1,1 @@
+ static camera shows a water balloon thrown at a wall. The balloon travels in an arc, hits the wall, and bursts into a wide splash.

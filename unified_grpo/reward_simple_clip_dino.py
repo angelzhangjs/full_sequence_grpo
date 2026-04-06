@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SIMPLIFIED Reward Function - CLIP + DINO ONLY
+Simplified reward function using CLIP only.
 """
 
 import torch
@@ -18,7 +18,9 @@ except ImportError:
 
 # Global model cache
 clip_model = None
-dino_model = None
+
+_CLIP_MEAN = torch.tensor([0.48145466, 0.4578275, 0.40821073], dtype=torch.float32)
+_CLIP_STD = torch.tensor([0.26862954, 0.26130258, 0.27577711], dtype=torch.float32)
 
 def load_clip_model(device='cuda'):
     """Load CLIP model"""
@@ -30,19 +32,6 @@ def load_clip_model(device='cuda'):
         clip_model = clip_model.to(dtype=torch.float32)
         print("✓ CLIP model loaded (dtype: torch.float32)")
     return clip_model
-
-def load_dino_model(device='cuda'):
-    """Load DINO model"""
-    global dino_model
-    if dino_model is None:
-        print("Loading DINOv2 model (first time)...")
-        dino_model = torch.hub.load(
-            'facebookresearch/dinov2:main',
-            'dinov2_vitb14'
-        ).to(device).eval().to(dtype=torch.float32)
-        print("✓ DINOv2 model loaded (dtype: torch.float32)")
-    return dino_model
-
 
 def _frame_to_chw_tensor(frame: Any, *, device: str) -> torch.Tensor:
     """
@@ -105,152 +94,122 @@ def _sample_frame_indices(total: int, k: int = 8) -> List[int]:
     return torch.linspace(0, total - 1, steps=kk).round().to(torch.long).tolist()
 
 
-@torch.no_grad()
-def clip_score(*, frames: Union[Sequence[Any], torch.Tensor], prompt: str, device: str = 'cuda') -> float:
-    """CLIP text-frame alignment (frames-only API)."""
-    if not CLIP_AVAILABLE:
-        return 0.5
-    
-    model = load_clip_model(device)
-
-    # Support either a python list of frames OR a frame-tensor [T,3,H,W] (or [B,T,3,H,W]).
-    frames_seq: Sequence[Any]
+def _normalize_frame_sequence(frames: Union[Sequence[Any], torch.Tensor], *, fn_name: str) -> Sequence[Any]:
+    """
+    Accept either a python sequence of frames or a tensor shaped [T,3,H,W] / [B,T,3,H,W].
+    """
     if isinstance(frames, torch.Tensor):
         v = frames
         if v.ndim == 5:
             v = v[0]
         if v.ndim != 4:
-            raise ValueError(f"clip_score: expected frames tensor [T,3,H,W] (or [B,T,3,H,W]), got {tuple(frames.shape)}")
-        frames_seq = [v[i] for i in range(int(v.shape[0]))]
-    else:
-        frames_seq = frames
+            raise ValueError(f"{fn_name}: expected frames tensor [T,3,H,W] (or [B,T,3,H,W]), got {tuple(frames.shape)}")
+        return [v[i] for i in range(int(v.shape[0]))]
+    return frames
+
+
+def _resolve_num_sampled_frames(total_frames: int, num_sampled_frames: Optional[int]) -> List[int]:
+    """
+    If num_sampled_frames is None or <= 0, use the whole video.
+    """
+    if num_sampled_frames is None or int(num_sampled_frames) <= 0:
+        return list(range(int(total_frames)))
+    return _sample_frame_indices(total_frames, k=int(num_sampled_frames))
+
+
+def _prepare_clip_frame(frame: Any, *, device: str) -> torch.Tensor:
+    from torchvision.transforms.functional import resize
+
+    x = _frame_to_chw_tensor(frame, device=device)
+    x = resize(x, (224, 224), antialias=True)
+    mean = _CLIP_MEAN.to(device=device)
+    std = _CLIP_STD.to(device=device)
+    return (x - mean[:, None, None]) / std[:, None, None]
+
+
+@torch.no_grad()
+def clip_score(
+    *,
+    frames: Union[Sequence[Any], torch.Tensor],
+    prompt: str,
+    device: str = 'cuda',
+    num_sampled_frames: Optional[int] = 8,
+    aggregation: str = "video_mean_pool",
+) -> float:
+    """
+    CLIP text-video alignment.
+
+    Modes:
+    - frame_mean: old behavior, average text-image similarity over sampled frames.
+    - video_mean_pool: encode sampled frames, mean-pool the embeddings into one clip
+      embedding, then compare text to the pooled clip embedding.
+    """
+    if not CLIP_AVAILABLE:
+        return 0.5
+
+    model = load_clip_model(device)
+
+    frames_seq = _normalize_frame_sequence(frames, fn_name="clip_score")
 
     T = len(frames_seq)
-    sample_indices = _sample_frame_indices(T, k=8)
-    
+    sample_indices = _resolve_num_sampled_frames(T, num_sampled_frames)
+    if not sample_indices:
+        return 0.0
+
     # Encode text
     text_tokens = clip.tokenize([prompt]).to(device)
     text_features = model.encode_text(text_tokens)
     text_features = F.normalize(text_features, dim=-1)
-    
-    # Encode frames
-    scores = []
-    from torchvision.transforms.functional import resize
+
+    # Encode frames, then aggregate at the clip level if requested.
+    frame_features = []
     for idx in sample_indices:
-        frame = _frame_to_chw_tensor(frames_seq[int(idx)], device=device)
-        
-        frame = resize(frame, (224, 224), antialias=True)
-        
-        # CLIP normalization
-        mean = torch.tensor([0.48145466, 0.4578275, 0.40821073], device=device)
-        std = torch.tensor([0.26862954, 0.26130258, 0.27577711], device=device)
-        frame = (frame - mean[:, None, None]) / std[:, None, None]
-        
+        frame = _prepare_clip_frame(frames_seq[int(idx)], device=device)
         image_features = model.encode_image(frame.unsqueeze(0))
         image_features = F.normalize(image_features, dim=-1)
-        
-        sim = F.cosine_similarity(text_features, image_features, dim=-1).item()
-        scores.append(max(0, sim))
-    
-    return float(np.mean(scores))
+        frame_features.append(image_features)
 
-@torch.no_grad()
-def dino_consistency_score(*, frames: Union[Sequence[Any], torch.Tensor], device: str = 'cuda') -> float:
-    """DINO feature consistency across frames (frames-only API)."""
-    model = load_dino_model(device)
+    image_features = torch.cat(frame_features, dim=0)
+    mode = str(aggregation).lower()
+    if mode == "frame_mean":
+        sims = F.cosine_similarity(text_features, image_features, dim=-1)
+        return float(sims.clamp_min(0.0).mean().item())
+    if mode != "video_mean_pool":
+        raise ValueError(
+            f"Unsupported CLIP aggregation mode: {aggregation}. "
+            "Choose from: frame_mean, video_mean_pool"
+        )
 
-    frames_seq: Sequence[Any]
-    if isinstance(frames, torch.Tensor):
-        v = frames
-        if v.ndim == 5:
-            v = v[0]
-        if v.ndim != 4:
-            raise ValueError(f"dino_consistency_score: expected frames tensor [T,3,H,W] (or [B,T,3,H,W]), got {tuple(frames.shape)}")
-        frames_seq = [v[i] for i in range(int(v.shape[0]))]
-    else:
-        frames_seq = frames
-
-    T = len(frames_seq)
-    sample_indices = _sample_frame_indices(T, k=8)
-    
-    # DINO transform
-    from torchvision.transforms.functional import resize
-    features = []
-    for idx in sample_indices:
-        frame = _frame_to_chw_tensor(frames_seq[int(idx)], device=device)
-        
-        frame = resize(frame, (224, 224), antialias=True)
-        
-        # ImageNet normalization
-        mean = torch.tensor([0.485, 0.456, 0.406], device=device)
-        std = torch.tensor([0.229, 0.224, 0.225], device=device)
-        frame = (frame - mean[:, None, None]) / std[:, None, None]
-        
-        feat = model(frame.unsqueeze(0))
-        feat = F.normalize(feat, dim=-1)
-        features.append(feat)
-    
-    # Consistency = similarity between consecutive frames
-    similarities = []
-    for i in range(len(features) - 1):
-        sim = F.cosine_similarity(features[i], features[i+1], dim=-1).item()
-        similarities.append(max(0, sim))
-    
-    return float(np.mean(similarities)) if len(similarities) > 0 else 0.0
+    clip_features = F.normalize(image_features.mean(dim=0, keepdim=True), dim=-1)
+    sim = F.cosine_similarity(text_features, clip_features, dim=-1).item()
+    return float(max(0.0, sim))
 
 def comprehensive_grpo_reward(*, frames: Union[Sequence[Any], torch.Tensor], prompt: str, device: str = 'cuda', **kwargs):
     """
-    SIMPLIFIED: CLIP + DINO ONLY
-    
-    Returns dict with component scores
+    Simplified CLIP-only reward.
+
+    Returns dict with component scores.
     """
     scores = {}
-    
-    # CLIP alignment
+
     try:
-        scores['clip_alignment'] = clip_score(frames=frames, prompt=prompt, device=device)
+        scores['clip_alignment'] = clip_score(
+            frames=frames,
+            prompt=prompt,
+            device=device,
+            num_sampled_frames=kwargs.get("clip_num_sampled_frames", 8),
+            aggregation=str(kwargs.get("clip_aggregation", "video_mean_pool")),
+        )
         scores['clip_temporal'] = scores['clip_alignment']  # same signal for now
     except Exception as e:
         print(f"⚠️ CLIP error: {e}")
         scores['clip_alignment'] = 0.5
         scores['clip_temporal'] = 0.5
-    
-    # DINO tracking only (removed buggy motion component!)
-    try:
-        scores['dino_consistency'] = dino_consistency_score(frames=frames, device=device)
-    except Exception as e:
-        print(f"⚠️ DINO error: {e}")
-        scores['dino_consistency'] = 0.5
-    
-    # Combine components.
-    #
-    # Important: DINO "consistency" (feature similarity between adjacent frames) is a
-    # strong *static bias* if you give it positive weight: the easiest way to increase
-    # it is to make frames more similar (less motion).
-    #
-    # Default weights:
-    # - CLIP (text alignment): 0.7
-    # - DINO (feature consistency): 0.3
-    #
-    # Note: giving DINO consistency positive weight can bias toward *less motion*
-    # (more similar frames). If you see "static collapse", reduce `w_dino` or
-    # replace this term with a motion-aware metric.
-    w_clip = float(kwargs.get("w_clip", 0.7))
-    w_dino = float(kwargs.get("w_dino", 0.3))
-    total_reward = (
-        w_clip * float(scores["clip_alignment"]) +
-        w_dino * float(scores["dino_consistency"])
-    )
-    
-    scores['reward'] = float(total_reward)
-    
-    # Clean breakdown
-    denom = (abs(w_clip) + abs(w_dino))
-    clip_pct = (100.0 * abs(w_clip) / denom) if denom > 0 else 0.0
-    dino_pct = (100.0 * abs(w_dino) / denom) if denom > 0 else 0.0
-    print(f"\n  Reward (CLIP + DINO):")
-    print(f"    CLIP: {scores['clip_alignment']:.4f} (w={w_clip:g}, ~{clip_pct:.0f}%)")
-    print(f"    DINO: {scores['dino_consistency']:.4f} (w={w_dino:g}, ~{dino_pct:.0f}%)")
+
+    scores['reward'] = float(scores["clip_alignment"])
+
+    print(f"\n  Reward (CLIP only):")
+    print(f"    CLIP: {scores['clip_alignment']:.4f}")
     print(f"  Total: {scores['reward']:.4f}")
-    
+
     return scores

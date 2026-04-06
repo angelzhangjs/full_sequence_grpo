@@ -1,0 +1,1 @@
+A static camera shows a spring being pressed downward. The coils move closer together, then the spring snaps back and vibrates briefly.

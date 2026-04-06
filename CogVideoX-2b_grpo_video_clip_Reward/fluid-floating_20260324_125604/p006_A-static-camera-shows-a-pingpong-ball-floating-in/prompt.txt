@@ -1,0 +1,1 @@
+A static camera shows a ping-pong ball floating in a bucket of water. The ball bobs up and down and slides sideways with each wave.

@@ -1,0 +1,1 @@
+A static camera shows a spinning top on a floor. The top stays upright at first, slowly tilts, and then collapses as it stops.

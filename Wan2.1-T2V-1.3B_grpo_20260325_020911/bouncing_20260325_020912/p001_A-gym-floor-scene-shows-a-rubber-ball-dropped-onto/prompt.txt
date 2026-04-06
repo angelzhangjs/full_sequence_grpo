@@ -1,0 +1,1 @@
+A gym floor scene shows a rubber ball dropped onto the floor. The ball squashes on impact, bounces back up, and each bounce becomes lower until it stops.

@@ -1,0 +1,22 @@
+mismatch_count 21
+5	falling	bouncing	In a close-up shot, a lucky coin slips from a hand, falls onto the tile floor, and makes a small bounce.
+10	falling	splashing	Over a bowl of soup, a dumpling drops from chopsticks back into the broth with a small splash.
+13	projectile	falling	Across a kitchen, a glass lid slips through the air, strikes the floor, and breaks into sharp pieces.
+15	projectile	generic	At a dessert plate, a brittle candy skewer lands hard on the edge and snaps into small pieces.
+17	projectile	generic	At a family game, a small clay figurine is knocked from the table, hits the floor, and breaks into fragments.
+20	projectile	splashing	In a night courtyard, a hand-held firework sprays sparks outward and the glowing pieces scatter in all directions.
+34	compression	spinning	In a bathroom, a rubber duck is pressed inward and then pops back with a wobble.
+38	compression	bouncing	In a backyard, a trampoline mat sags under a step, rebounds upward, and keeps bouncing.
+40	compression	rolling	On a street, a car tire rolls over a curb, squashes at the bottom, and rounds out again.
+48	spinning	generic	In a workshop, a drill turns a screw into a wooden sign and slows as it reaches the end.
+53	rolling	spinning	Across a kitchen floor, a soda can rolls on its side, wobbles, and tips over.
+56	rolling	spinning	Across a tabletop, a coin rolls on its edge, wobbles, and then falls flat.
+64	bouncing	projectile	In a hallway, a superball bounces high, hits the wall, and ricochets in a new direction.
+65	bouncing	projectile	On a tennis court, a tennis ball is thrown against a wall, rebounds back, and kicks upward after landing.
+74	fluid_flowing	generic	At a kitchen sink, a faucet is turned on and water streams into a basin of dishes.
+77	fluid_flowing	generic	Along a riverside night market, a small wave washes onto the bank and pulls back.
+84	floating	spinning	In a festive drink, an ice cube floats near the glass and slowly rotates.
+90	floating	spinning	In a bowl of punch, a slice of orange floats and rotates slowly near the edge.
+95	splashing	projectile	Into a backyard pool, a ball is tossed and makes a deep splash with water rising upward.
+97	splashing	falling	From a paintbrush on a calligraphy table, water flicks outward and scatters into droplets.
+99	splashing	fluid_flowing	Across a courtyard stone floor, a bucket of water is poured and splashes in all directions.

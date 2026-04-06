@@ -1,0 +1,1 @@
+A static camera shows a glass marble dropped onto concrete. The marble falls quickly, bounces high once, then makes smaller bounces.

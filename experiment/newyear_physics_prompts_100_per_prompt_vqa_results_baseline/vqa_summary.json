@@ -1,0 +1,22 @@
+{
+    "overall_score": 0.7413333333333333,
+    "total_videos": 100,
+    "model_name": "Qwen/Qwen2-VL-2B-Instruct",
+    "category_scores": {
+        "bouncing_score": 0.6933333333333332,
+        "compression_score": 0.6466666666666666,
+        "falling_score": 0.66,
+        "fluid_flowing_score": 0.9466666666666667,
+        "floating_score": 0.8,
+        "projectile_score": 0.74,
+        "rolling_score": 0.6499999999999999,
+        "splashing_score": 0.9066666666666668,
+        "spinning_score": 0.7133333333333333,
+        "swinging_score": 0.6566666666666666
+    },
+    "evaluation_params": {
+        "vqa_questions_dir": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_per_prompt_vqa",
+        "video_dir": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_baseline_video_id",
+        "prompt_file": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_per_prompt_vqa/prompt_manifest.json"
+    }
+}

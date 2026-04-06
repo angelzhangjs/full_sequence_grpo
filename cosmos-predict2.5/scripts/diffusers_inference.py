@@ -49,6 +49,55 @@ from typing import Annotated
 import pydantic
 import torch
 import tyro
+
+
+def _maybe_disable_cosmos_guardrail() -> None:
+    """
+    Replace diffusers' CosmosSafetyChecker with a no-op when COSMOS_DISABLE_GUARDRAIL is 1/true/yes.
+
+    Use this when Hugging Face gated checkpoints (e.g. nvidia/Cosmos-1.0-Guardrail, Aegis adapters) are
+    unavailable or peft cannot load adapter_config.json. Disabling guardrails may conflict with the
+    NVIDIA Open Model License; use only if you are allowed to in your setting.
+    """
+    flag = os.environ.get("COSMOS_DISABLE_GUARDRAIL", "").strip().lower()
+    if flag not in ("1", "true", "yes", "on"):
+        return
+    import diffusers.pipelines.cosmos.pipeline_cosmos2_5_predict as _cosmos_pipe
+
+    class _NoOpCosmosSafetyChecker(torch.nn.Module):
+        """Must expose ``dtype`` / ``device`` so ``DiffusionPipeline.to()`` can iterate components."""
+
+        def __init__(self) -> None:
+            super().__init__()
+            self._noop_device = torch.device("cpu")
+            self._noop_dtype = torch.bfloat16
+
+        def check_text_safety(self, prompt: str) -> bool:
+            return True
+
+        def check_video_safety(self, frames):
+            return frames
+
+        def to(self, device=None, dtype=None, non_blocking=False):
+            if device is not None:
+                self._noop_device = torch.device(device) if not isinstance(device, torch.device) else device
+            if dtype is not None:
+                self._noop_dtype = dtype
+            return self
+
+        @property
+        def dtype(self) -> torch.dtype:
+            return self._noop_dtype
+
+        @property
+        def device(self) -> torch.device:
+            return self._noop_device
+
+    _cosmos_pipe.CosmosSafetyChecker = _NoOpCosmosSafetyChecker
+
+
+_maybe_disable_cosmos_guardrail()
+
 from diffusers import Cosmos2_5_PredictBasePipeline
 from diffusers.utils import export_to_video, load_image, load_video
 

@@ -1,0 +1,1 @@
+A static camera shows a ball thrown into a pool. The ball hits the water, makes a deep splash, and sends a column of water upward.

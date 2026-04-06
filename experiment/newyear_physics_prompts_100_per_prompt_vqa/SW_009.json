@@ -1,0 +1,56 @@
+[
+  {
+    "uid": "SW_009_q1",
+    "question": "Score how faithfully the video depicts \"A market scene shows a shopping bag swinging from a wrist as the person comes to a stop\", rather than drifting away from the prompt.",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "swinging"
+  },
+  {
+    "uid": "SW_009_q2",
+    "question": "Score how physically plausible the back-and-forth arc motion is for A market scene shows, especially during \"A market scene shows a shopping bag swinging from a wrist as the person comes to a stop\".",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "swinging"
+  },
+  {
+    "uid": "SW_009_q3",
+    "question": "Score whether the sequence \"A market scene shows a shopping bag swinging from a wrist as the person comes to a stop\" unfolds in the correct temporal order without skips, teleporting, or abrupt reversals.",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "swinging"
+  },
+  {
+    "uid": "SW_009_q4",
+    "question": "Score whether the video shows smooth direction changes near arc endpoints, especially around \"A market scene shows a shopping bag swinging from a wrist as the person comes to a stop\" and \"A market scene shows a shopping bag swinging from a wrist as the person comes to a stop\".",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "swinging"
+  },
+  {
+    "uid": "SW_009_q5",
+    "question": "Score how plausible the final outcome \"A market scene shows a shopping bag swinging from a wrist as the person comes to a stop\" looks given the earlier motion and interactions in the prompt.",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "swinging"
+  },
+  {
+    "uid": "SW_009_q6",
+    "question": "Score the overall physical plausibility of the full prompt \"A market scene shows a shopping bag swinging from a wrist as the person comes to a stop\" as shown in the video.",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "swinging"
+  }
+]

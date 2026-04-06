@@ -1,0 +1,1 @@
+ static camera shows a fast boat moving across water. Spray rises from the front of the boat and a V-shaped wake trails behind it.

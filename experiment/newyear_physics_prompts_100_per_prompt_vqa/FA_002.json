@@ -1,0 +1,56 @@
+[
+  {
+    "uid": "FA_002_q1",
+    "question": "Score how faithfully the video depicts \"hitting the bowl below\" in the setting \"A kitchen table scene shows an orange dropping from a fruit bowl\", rather than drifting away from the prompt.",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "falling"
+  },
+  {
+    "uid": "FA_002_q2",
+    "question": "Score how physically plausible the downward fall under gravity is for hitting the bowl below, especially during \"settling inside\".",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "falling"
+  },
+  {
+    "uid": "FA_002_q3",
+    "question": "Score whether the sequence \"hitting the bowl below -> settling inside\" unfolds in the correct temporal order without skips, teleporting, or abrupt reversals.",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "falling"
+  },
+  {
+    "uid": "FA_002_q4",
+    "question": "Score whether the video shows surface contact before any stop, bounce, or settle behavior, especially around \"settling inside\" and \"settling inside\".",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "falling"
+  },
+  {
+    "uid": "FA_002_q5",
+    "question": "Score how plausible the final outcome \"settling inside\" looks given the earlier motion and interactions in the prompt.",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "falling"
+  },
+  {
+    "uid": "FA_002_q6",
+    "question": "Score the overall physical plausibility of the full prompt \"A kitchen table scene shows an orange dropping from a fruit bowl, hitting the bowl below, and settling inside\" as shown in the video.",
+    "evaluation_mode": "score",
+    "min_score": 0,
+    "max_score": 5,
+    "rubric": "Use an integer score from 0 to 5. Score 0 if the event is missing, severely off-prompt, or physically contradicted. Score 1 if there is only weak evidence and major artifacts such as teleporting, hovering, pre-contact reactions, or random motion. Score 2 if the intended event is partly visible but causality, continuity, or outcome is clearly flawed. Score 3 if the event is mostly correct but still has noticeable physical inconsistencies. Score 4 if the event is strongly supported with only minor issues. Score 5 if the event is clear, temporally coherent, causally correct, and physically plausible.",
+    "task": "falling"
+  }
+]

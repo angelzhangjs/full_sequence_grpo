@@ -1,0 +1,1 @@
+ static camera shows a necklace pendant swinging while a person moves. The pendant lags behind, swings forward, and continues in a repeating arc.

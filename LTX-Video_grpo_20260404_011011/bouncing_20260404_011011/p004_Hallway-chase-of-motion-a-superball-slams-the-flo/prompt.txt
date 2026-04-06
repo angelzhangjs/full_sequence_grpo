@@ -1,0 +1,1 @@
+Hallway chase of motion: a superball slams the floor, shoots upward, ricochets off a wall, and caroms into a new bounce without losing much speed.

@@ -1,0 +1,1 @@
+A static camera shows a frisbee thrown with spin. The frisbee glides forward, drifts sideways, and then slowly drops downward.

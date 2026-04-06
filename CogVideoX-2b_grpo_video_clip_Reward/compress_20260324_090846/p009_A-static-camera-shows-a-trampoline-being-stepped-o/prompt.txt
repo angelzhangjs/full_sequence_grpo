@@ -1,0 +1,1 @@
+A static camera shows a trampoline being stepped on. The mat sags downward, rebounds upward, and keeps oscillating for a moment.

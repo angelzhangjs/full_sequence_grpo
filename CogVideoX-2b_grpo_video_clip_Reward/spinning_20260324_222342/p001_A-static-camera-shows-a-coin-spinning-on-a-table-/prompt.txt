@@ -1,0 +1,1 @@
+A static camera shows a coin spinning on a table. The coin rotates quickly, begins to wobble, and then falls flat.

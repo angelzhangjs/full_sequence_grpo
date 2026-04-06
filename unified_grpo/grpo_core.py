@@ -5,7 +5,12 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 import torch
 from unified_grpo.adapters.base import StepContext, VideoGRPOAdapter
-from unified_grpo.utils import save_video_tensor_as_mp4
+from unified_grpo.utils import (
+    save_rgb_frame_png,
+    save_denoising_trajectory_strip_png,
+    save_video_tensor_as_mp4,
+    video_tensor_to_middle_frame_uint8,
+)
 
 RewardFn = Callable[[torch.Tensor, str], torch.Tensor]
 
@@ -18,6 +23,10 @@ class GRPOConfig:
     lr: float = 1e-4
     grad_clip: float = 1.0
     normalize_advantages: bool = True
+    # If False, allow gradients to flow through reward-derived weights/advantages.
+    # Useful for trainable reward-weight networks that do not backprop through the
+    # video generator itself.
+    detach_advantages: bool = True
     logprob_sigma: float = 1.0  # Gaussian-policy surrogate scale for action logp
 
     # ── Rollout diversity controls ────────────────────────────────────────────────
@@ -62,6 +71,25 @@ class GRPOConfig:
     # trajectory (i.e., the sample obtained by advancing with the best rollout each step).
     # This can be useful for debugging, but is less comparable across runs.
     save_training_trajectory_video: bool = False
+    # Default target duration for saved MP4 outputs. FPS is derived from decoded frame count.
+    output_video_duration_s: float = 4.0
+
+    # If True, periodically decode latents during denoising (warmup + GRPO), take the
+    # middle video frame, and save one wide PNG strip: `denoising_trajectory_strip.png`
+    # under out_dir. Expensive: one full VAE decode per captured step.
+    save_denoising_trajectory_strip_png: bool = False
+    # Save one strip panel every N completed denoising steps. The final step is always
+    # included even if it is not divisible by this stride.
+    denoising_strip_step_stride: int = 5
+    # If True, also save one PNG snapshot for every completed denoising step under
+    # out_dir / denoising_step_snapshot_subdir / step_XXXX.png.
+    save_denoising_step_snapshots: bool = False
+    # Save one PNG snapshot every N completed denoising steps. The final step is
+    # always included even if it is not divisible by this stride.
+    denoising_step_snapshot_stride: int = 1
+    denoising_step_snapshot_subdir: str = "denoising_steps"
+    # Max height per panel before horizontal concat (width scales with aspect ratio).
+    denoising_strip_max_thumb_height: int = 280
 
 
 def generate_latents_from_scratch(
@@ -247,11 +275,12 @@ def collect_rollouts(
             to_decode = rollout_step_output.x0_latents if rollout_step_output.x0_latents is not None else rollout_step_output.next_latents
             ############### need to re-implement here, as we need to decode the x0_latents to video, and then compute the reward
             video = adapter.decode_for_reward(latents_or_x0=to_decode, x0_is_patchified=True)
-            reward = reward_fn(video, prompt)
+            with torch.enable_grad():
+                reward = reward_fn(video, prompt)
             ############### end of re-implementation
 
             rollout_actions_cpu.append(rollout_step_output.action.detach().to(dtype=torch.float16, device="cpu"))
-            rollout_rewards.append(reward.detach().float().to(device))
+            rollout_rewards.append(reward.float().to(device))
 
             reward_value = float(reward.detach().float().item())
             if best_reward is None or reward_value > best_reward:
@@ -353,6 +382,7 @@ def run_grpo_for_prompt(
     out_dir: Optional[Path] = None,
     cfg: GRPOConfig = GRPOConfig(),
     model_type: None | str = None,
+    extra_trainable_parameters: Optional[List[torch.nn.Parameter]] = None,
 ) -> Dict[str, float]:
     """
     Unified GRPO loop over the last N timesteps.
@@ -374,6 +404,8 @@ def run_grpo_for_prompt(
 
     # Prepare trainable params + optimizer.
     params = adapter.trainable_parameters()
+    if extra_trainable_parameters:
+        params = list(params) + [p for p in extra_trainable_parameters if getattr(p, "requires_grad", False)]
     if len(params) == 0:
         raise ValueError(f"Adapter '{adapter.name}' returned 0 trainable parameters.")
     
@@ -405,7 +437,7 @@ def run_grpo_for_prompt(
                 # Diffusers-style models.
                 model.enable_gradient_checkpointing()  # type: ignore[attr-defined]
                 print("✅ Gradient checkpointing enabled on transformer.")
-            except TypeError:
+            except (TypeError, ValueError):
                 # LTX's Transformer3DModel defines `_set_gradient_checkpointing(self, module, value=False)`
                 # (no `enable=` kwarg), so diffusers' default `enable_gradient_checkpointing()` path crashes.
                 # For LTX, the transformer forward checks `self.gradient_checkpointing` directly.
@@ -421,7 +453,7 @@ def run_grpo_for_prompt(
                 try:
                     model.enable_gradient_checkpointing()
                     print("✅ Gradient checkpointing enabled on model.")
-                except TypeError:
+                except (TypeError, ValueError):
                     if hasattr(model, "gradient_checkpointing"):
                         setattr(model, "gradient_checkpointing", True)
                         print("✅ Gradient checkpointing enabled on model (fallback flag).")
@@ -434,6 +466,40 @@ def run_grpo_for_prompt(
     last_mean_r = 0.0
     last_std_r = 0.0
     adv: Optional[torch.Tensor] = None
+
+    save_strip = bool(out_dir is not None and getattr(cfg, "save_denoising_trajectory_strip_png", False))
+    save_step_snapshots = bool(out_dir is not None and getattr(cfg, "save_denoising_step_snapshots", False))
+    strip_frames: List[Any] = []
+
+    strip_stride = max(1, int(getattr(cfg, "denoising_strip_step_stride", 5)))
+    step_snapshot_stride = max(1, int(getattr(cfg, "denoising_step_snapshot_stride", 1)))
+    total_steps = len(timesteps)
+    step_snapshot_dir = (
+        Path(out_dir) / str(getattr(cfg, "denoising_step_snapshot_subdir", "denoising_steps"))
+        if save_step_snapshots
+        else None
+    )
+
+    def _capture_denoising_visuals(step_index: int) -> None:
+        if not (save_strip or save_step_snapshots):
+            return
+        completed_step = int(step_index) + 1
+        should_capture_for_strip = (completed_step % strip_stride == 0) or (completed_step == total_steps)
+        should_capture_step_snapshot = (completed_step % step_snapshot_stride == 0) or (completed_step == total_steps)
+        if not save_step_snapshots and not should_capture_for_strip:
+            return
+        if save_step_snapshots and not should_capture_step_snapshot and not should_capture_for_strip:
+            return
+        with torch.no_grad():
+            vid = adapter.decode_for_reward(latents_or_x0=latents, x0_is_patchified=True).detach().cpu()
+        middle_frame = video_tensor_to_middle_frame_uint8(vid)
+        if save_step_snapshots and should_capture_step_snapshot and step_snapshot_dir is not None:
+            save_rgb_frame_png(
+                middle_frame,
+                step_snapshot_dir / f"step_{completed_step:04d}.png",
+            )
+        if save_strip and should_capture_for_strip:
+            strip_frames.append(middle_frame)
 
     for i, t in enumerate(timesteps):
         print(f"\n{'='*50}")
@@ -461,6 +527,7 @@ def run_grpo_for_prompt(
                 )
             latents = out.next_latents.detach()
             solver_state = out.solver_state
+            _capture_denoising_visuals(i)
             continue
 
         # ---------------------------
@@ -524,7 +591,8 @@ def run_grpo_for_prompt(
         #       A_k < 0 (low reward):  PUSH action_best AWAY  from a_k → model predicts less like that rollout
         #
         #     Net: optimizer.step() moves model weights toward actions that lead to better rewards.
-        loss = -(adv.detach().float() * logps_t.float()).mean()
+        adv_for_loss = adv.detach().float() if bool(getattr(cfg, "detach_advantages", True)) else adv.float()
+        loss = -(adv_for_loss * logps_t.float()).mean()
 
         # (c) Backward pass + gradient clip + optimizer step
         print(f"  Backward pass...")
@@ -548,6 +616,7 @@ def run_grpo_for_prompt(
         # ---------------------------
         latents = rollout.best_next_latents.detach().clone()
         solver_state = rollout.best_solver_state
+        _capture_denoising_visuals(i)
 
         # Release tensors now that we're done with this step.
         del loss, action_best, logps_t, rollout
@@ -561,10 +630,25 @@ def run_grpo_for_prompt(
         print(f"  ✅ Model updated | Loss: {last_loss:.4f}")
         print(f"  GPU free: {torch.cuda.mem_get_info()[0] / 1024**3:.1f} GB")
 
+    if save_strip and strip_frames:
+        strip_path = Path(out_dir) / "denoising_trajectory_strip.png"
+        save_denoising_trajectory_strip_png(
+            strip_frames,
+            strip_path,
+            max_panel_height=int(getattr(cfg, "denoising_strip_max_thumb_height", 280)),
+        )
+        print(
+            f"\n🖼️  Denoising trajectory strip saved: {strip_path} "
+            f"({len(strip_frames)} panels, every {strip_stride} steps)"
+        )
+    if save_step_snapshots and step_snapshot_dir is not None:
+        print(f"🖼️  Per-step denoising snapshots saved: {step_snapshot_dir}")
+
     # Save final video as MP4 (watchable format)
     if out_dir is not None:
         out_dir.mkdir(parents=True, exist_ok=True)
         base = f"{model_type}_grpo" if model_type else "grpo"
+        target_duration_s = max(1e-6, float(getattr(cfg, "output_video_duration_s", 4.0)))
 
         # (A) Save a clean post-training sample from scratch (recommended)
         if bool(getattr(cfg, "save_post_training_video_from_scratch", True)):
@@ -577,12 +661,13 @@ def run_grpo_for_prompt(
             )
             with torch.no_grad():
                 final_video = adapter.decode_for_reward(latents_or_x0=final_latents, x0_is_patchified=True).detach().cpu()
+            final_fps = float(max(1, int(final_video.shape[0]))) / target_duration_s
 
             mp4_path = out_dir / f"{base}.mp4"
             mp4_path = save_video_tensor_as_mp4(
                 video=final_video,
                 mp4_path=mp4_path,
-                fps=8,
+                fps=final_fps,
                 codec="libx264",
                 quality=8,
                 verbose=True,
@@ -595,12 +680,13 @@ def run_grpo_for_prompt(
             print("\n🎞️  Saving training-trajectory sample (decoded from final training latents)...")
             with torch.no_grad():
                 traj_video = adapter.decode_for_reward(latents_or_x0=latents, x0_is_patchified=True).detach().cpu()
+            traj_fps = float(max(1, int(traj_video.shape[0]))) / target_duration_s
 
             traj_mp4_path = out_dir / f"{base}_trajectory.mp4"
             traj_mp4_path = save_video_tensor_as_mp4(
                 video=traj_video,
                 mp4_path=traj_mp4_path,
-                fps=8,
+                fps=traj_fps,
                 codec="libx264",
                 quality=8,
                 verbose=True,

@@ -1,0 +1,10 @@
+A gym floor scene shows a rubber ball dropped onto the floor. The ball squashes on impact, bounces back up, and each bounce becomes lower until it stops.
+A table tennis scene shows a ping-pong ball bouncing on a paddle. The ball rebounds lightly after each tap and follows small arcs through the air.
+A basketball court scene shows a person dribbling a basketball. The ball compresses against the ground, rebounds upward, and repeats in a steady rhythm.
+A hallway scene shows a superball bouncing along the floor. It rebounds high, clips the wall, and changes direction before bouncing again.
+A tennis court scene shows a tennis ball thrown against a wall. The ball hits the wall, bounces back, then lands and kicks slightly sideways.
+A tabletop scene shows a small metal ball bearing dropped onto a metal surface. It makes short quick bounces, each one lower than the last, then starts to roll.
+A living room scene shows a foam ball dropped onto a carpet. The ball compresses deeply, rebounds only a little, and quickly settles.
+A sidewalk scene shows a soccer ball bouncing on concrete. It rebounds from the ground, lands again, and then skids forward into a slow roll.
+A front step scene shows a small pebble bouncing down several steps. It hits one step, hops to the next, then continues downward before rolling at the bottom.
+A home floor scene shows a metal key dropped onto a wooden floor. The key strikes the floor, flips once, makes a small bounce, and then lands still.

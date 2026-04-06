@@ -1,0 +1,1 @@
+A static camera shows a stone dropped into still water. The stone breaks the surface, throws up a splash, and ripples spread outward.

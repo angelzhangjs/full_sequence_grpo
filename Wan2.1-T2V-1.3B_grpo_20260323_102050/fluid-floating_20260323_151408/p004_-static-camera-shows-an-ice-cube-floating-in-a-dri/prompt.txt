@@ -1,0 +1,1 @@
+ static camera shows an ice cube floating in a drink. The cube drifts slowly, rotates near the glass, and becomes smaller as it melts.

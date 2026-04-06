@@ -1,0 +1,1 @@
+ sink scene shows a sponge being compressed in a hand. The sponge wrinkles as it is squeezed, then expands again when the hand releases it.

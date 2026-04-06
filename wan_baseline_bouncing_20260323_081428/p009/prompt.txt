@@ -1,0 +1,1 @@
+ static camera shows a small pebble bouncing down stairs. It hits one step, hops to the next, then continues downward before rolling at the bottom.

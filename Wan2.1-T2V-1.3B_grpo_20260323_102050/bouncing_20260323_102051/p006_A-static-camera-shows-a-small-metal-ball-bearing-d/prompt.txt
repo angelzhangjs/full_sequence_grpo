@@ -1,0 +1,1 @@
+A static camera shows a small metal ball bearing dropped onto a metal surface. It makes short quick bounces, each one lower than the last, then starts to roll.

@@ -1,0 +1,1 @@
+ static camera shows a soap bubble floating upward through still air. The bubble drifts gently, moves side to side, and then pops.

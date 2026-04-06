@@ -1,0 +1,1 @@
+A static camera shows a punch bag after it is struck. The bag swings forward, returns through the center, and keeps moving with gradually smaller swings.

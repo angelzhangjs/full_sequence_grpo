@@ -1,0 +1,1 @@
+A static camera shows a rubber ball dropped onto a hard floor. The ball squashes on impact, bounces back up, then each bounce becomes lower until it comes to rest.

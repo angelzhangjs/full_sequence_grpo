@@ -1,0 +1,1 @@
+A static camera shows a metronome arm moving from side to side. The arm swings evenly and passes through the center with the highest speed.

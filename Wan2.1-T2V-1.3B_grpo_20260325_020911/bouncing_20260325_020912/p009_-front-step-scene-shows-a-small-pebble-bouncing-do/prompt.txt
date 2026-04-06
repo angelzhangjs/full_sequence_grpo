@@ -1,0 +1,1 @@
+ front step scene shows a small pebble bouncing down several steps. It hits one step, hops to the next, then continues downward before rolling at the bottom.

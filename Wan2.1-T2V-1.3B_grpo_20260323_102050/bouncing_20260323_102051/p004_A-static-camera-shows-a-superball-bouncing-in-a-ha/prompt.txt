@@ -1,0 +1,1 @@
+A static camera shows a superball bouncing in a hallway. It hits the floor, rebounds high, then glances off a wall and changes direction.

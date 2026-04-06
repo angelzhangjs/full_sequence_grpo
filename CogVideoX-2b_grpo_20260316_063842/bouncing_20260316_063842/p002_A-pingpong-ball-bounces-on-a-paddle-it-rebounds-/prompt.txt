@@ -1,0 +1,1 @@
+A ping-pong ball bounces on a paddle; it rebounds with a light snap, spin changes the angle, and it arcs differently with each tap.

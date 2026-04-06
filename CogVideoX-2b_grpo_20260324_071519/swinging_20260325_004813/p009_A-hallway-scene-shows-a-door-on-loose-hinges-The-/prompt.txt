@@ -1,0 +1,1 @@
+A hallway scene shows a door on loose hinges. The door swings open, hits the frame, rebounds, and then oscillates with smaller angles.

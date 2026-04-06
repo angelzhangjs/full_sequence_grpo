@@ -1,0 +1,1 @@
+A static camera shows a skateboard rolling downhill. The board accelerates forward and then carves in smooth curves as the rider shifts weight.

@@ -1,0 +1,1 @@
+ static camera shows a basketball dropped from waist height. The ball squashes on impact, rebounds upward, and each bounce becomes lower.

@@ -1,0 +1,1 @@
+ superball bounces in a hallway; it ricochets off walls at sharp angles, rebounds high, then unpredictably changes direction due to spin.

@@ -1,0 +1,1 @@
+A static camera shows a merry-go-round spinning. It speeds up, keeps turning in a smooth circle, and then slows down again.

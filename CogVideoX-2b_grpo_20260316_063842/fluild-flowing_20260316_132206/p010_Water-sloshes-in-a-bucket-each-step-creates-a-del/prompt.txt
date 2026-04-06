@@ -1,0 +1,1 @@
+Water sloshes in a bucket; each step creates a delayed wave that climbs the side, then collapses back with overlapping ripples.

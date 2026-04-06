@@ -5,7 +5,6 @@ import math
 from typing import Any, Dict, List, Optional
 
 import torch
-import torch.cuda.amp as amp
 
 from unified_grpo.adapters.base import StepContext, StepOutput, VideoGRPOAdapter
 from unified_grpo.lora_utils import get_trainable_lora_parameters, has_lora
@@ -22,11 +21,10 @@ class WanAdapter(VideoGRPOAdapter):
     - scheduler is FlowUniPC / FlowDPM++ from `wan/utils/fm_solvers*.py`
     - VAE decode uses `WanVAE.decode([latent])` which returns pixels in [-1, 1]
     """
-    # `pipeline` is expected to be a WanT2V-like object (see Wan2.1/wan/text2video.py)
+    # `pipeline` is expected to be a WanT2V-like object (see Wan2.1/wan/txt2video.py)
     # with at least: .device, .model (WanModel), .vae (WanVAE), .vae_stride, .patch_size,
-    # .num_train_timesteps, .param_dtype
+    # .num_train_timesteps, .param_dtype (WanT2V.generate)
     pipeline: Any
-
     # Wan text encoder returns context as a *list* of tensors (see WanT2V.generate).
     prompt_embeds: Any
     negative_prompt_embeds: Optional[Any] = None
@@ -160,7 +158,7 @@ class WanAdapter(VideoGRPOAdapter):
             ids = set(range(start, total))
             # Store for logging/debugging
             self.train_transformer_blocks = list(range(start, total))
-        # Case 3: train all blocks
+        # Case 3: train all blocks 
         else:
             for p in model.parameters():
                 p.requires_grad_(True)
@@ -237,11 +235,16 @@ class WanAdapter(VideoGRPOAdapter):
             return out_list[0]
         
         if with_grad:
-            with amp.autocast(dtype=param_dtype):
-                noise_pred_cond = _forward(ctx_cond)
+            # WAN CFG needs two forwards (cond + uncond). Keeping both branches in the
+            # autograd graph is very memory-heavy during the GRPO recompute step, so we
+            # treat the unconditional branch as a fixed baseline and only backprop
+            # through the conditional branch.
+            with torch.no_grad(), torch.amp.autocast("cuda", dtype=param_dtype):
                 noise_pred_uncond = _forward(ctx_uncond)
+            with torch.amp.autocast("cuda", dtype=param_dtype):
+                noise_pred_cond = _forward(ctx_cond)
         else:
-            with torch.no_grad(), amp.autocast(dtype=param_dtype):
+            with torch.no_grad(), torch.amp.autocast("cuda", dtype=param_dtype):
                 noise_pred_cond = _forward(ctx_cond)
                 noise_pred_uncond = _forward(ctx_uncond)
         

@@ -1,0 +1,1 @@
+A static camera shows a fidget spinner after it is flicked. The spinner turns rapidly, blurs at first, and then gradually slows to a stop.

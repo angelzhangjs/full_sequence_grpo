@@ -1,0 +1,1 @@
+A door on loose hinges swings; it accelerates as it falls open, then bangs the frame and rebounds, oscillating with decreasing angles.

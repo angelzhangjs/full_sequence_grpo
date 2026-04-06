@@ -1,0 +1,1 @@
+ static camera shows a flat stone skipping across a pond. The stone touches the water several times, makes shorter skips, and then sinks.

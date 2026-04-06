@@ -1,0 +1,1 @@
+A paint roller rolls across a wall; it turns steadily, paint transfers in a thick band, then the roller slows as friction increases on drier patches.

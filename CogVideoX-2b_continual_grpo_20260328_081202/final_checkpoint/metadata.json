@@ -1,0 +1,17 @@
+{
+  "model_type": "cogvideox",
+  "model_path": "THUDM/CogVideoX-2b",
+  "prompt_file": "/lambda/nfs/angel-research/origin_grpo/newyear_physics_prompts_100.txt",
+  "use_lora": true,
+  "lora_rank": 4,
+  "lora_alpha": 8,
+  "lora_blocks": "last",
+  "unfreeze_percentage": 0.2,
+  "checkpoint_type": "lora",
+  "checkpoint_path": "/lambda/nfs/angel-research/CogVideoX-2b_continual_grpo_20260328_081202/final_checkpoint/lora_adapter",
+  "height": 480,
+  "width": 720,
+  "num_frames": 32,
+  "guidance_scale": 7.5,
+  "timestamp": "2026-03-28T20:16:45.630326"
+}

@@ -1,0 +1,1 @@
+A static camera shows a windmill turning in the wind. The blades speed up in a gust, then spin more slowly as the wind fades.

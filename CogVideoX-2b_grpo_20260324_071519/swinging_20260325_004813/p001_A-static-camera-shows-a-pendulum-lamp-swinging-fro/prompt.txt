@@ -1,0 +1,1 @@
+A static camera shows a pendulum lamp swinging from the ceiling. The lamp moves in a smooth arc, passes quickly through the center, and slows near each end.

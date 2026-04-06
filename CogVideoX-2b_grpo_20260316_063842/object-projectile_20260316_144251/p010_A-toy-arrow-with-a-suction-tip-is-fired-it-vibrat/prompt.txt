@@ -1,0 +1,1 @@
+A toy arrow with a suction tip is fired; it vibrates slightly as it flies, then sticks to a window with a soft slap and slowly slides downward under gravity.

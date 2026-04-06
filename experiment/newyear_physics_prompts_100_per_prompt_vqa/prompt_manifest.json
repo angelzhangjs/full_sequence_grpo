@@ -1,0 +1,602 @@
+[
+  {
+    "video_id": "FA_001",
+    "prompt_en": "A static shot of a living room shows a box slipping from a shelf, falling to the floor, and landing flat.",
+    "category": "falling",
+    "source_index": 1
+  },
+  {
+    "video_id": "FA_002",
+    "prompt_en": "A kitchen table scene shows an orange dropping from a fruit bowl, hitting the bowl below, and settling inside.",
+    "category": "falling",
+    "source_index": 2
+  },
+  {
+    "video_id": "FA_003",
+    "prompt_en": "A doorway scene shows a paper note coming loose, falling past the wall, and landing softly.",
+    "category": "falling",
+    "source_index": 3
+  },
+  {
+    "video_id": "FA_004",
+    "prompt_en": "A dining table close-up shows a chopstick slipping from a bowl, dropping, and tapping against the tabletop.",
+    "category": "falling",
+    "source_index": 4
+  },
+  {
+    "video_id": "FA_005",
+    "prompt_en": "A close-up shows a coin slipping from a pocket, falling onto the tile floor, and making a small bounce.",
+    "category": "falling",
+    "source_index": 5
+  },
+  {
+    "video_id": "FA_006",
+    "prompt_en": "A city sidewalk at night shows snow falling through a streetlight and settling on the ground.",
+    "category": "falling",
+    "source_index": 6
+  },
+  {
+    "video_id": "FA_007",
+    "prompt_en": "An apartment interior shows a ribbon dropping from a wall hook, landing on a cabinet, and stopping.",
+    "category": "falling",
+    "source_index": 7
+  },
+  {
+    "video_id": "FA_008",
+    "prompt_en": "A wet street scene shows a paper wrapper falling to the pavement and sticking to the surface.",
+    "category": "falling",
+    "source_index": 8
+  },
+  {
+    "video_id": "FA_009",
+    "prompt_en": "A quiet courtyard shows a dry leaf falling from a branch and landing on the stone path.",
+    "category": "falling",
+    "source_index": 9
+  },
+  {
+    "video_id": "FA_010",
+    "prompt_en": "A close-up over a bowl of soup shows a dumpling dropping into the broth with a small splash.",
+    "category": "falling",
+    "source_index": 10
+  },
+  {
+    "video_id": "PR_001",
+    "prompt_en": "A dining table scene shows a small glass ornament tossed into the air, hitting the tabletop, and breaking into bright pieces.",
+    "category": "projectile",
+    "source_index": 11
+  },
+  {
+    "video_id": "PR_002",
+    "prompt_en": "A living room scene shows a thin ceramic cup flying toward a wall, hitting hard, and shattering into fragments.",
+    "category": "projectile",
+    "source_index": 12
+  },
+  {
+    "video_id": "PR_003",
+    "prompt_en": "A kitchen scene shows a glass lid slipping through the air, striking the floor, and breaking into sharp pieces.",
+    "category": "projectile",
+    "source_index": 13
+  },
+  {
+    "video_id": "PR_004",
+    "prompt_en": "A courtyard scene shows a sugar decoration thrown toward a stone path and breaking apart on impact.",
+    "category": "projectile",
+    "source_index": 14
+  },
+  {
+    "video_id": "PR_005",
+    "prompt_en": "A dessert table close-up shows a brittle candy skewer landing hard on a plate edge and snapping into small pieces.",
+    "category": "projectile",
+    "source_index": 15
+  },
+  {
+    "video_id": "PR_006",
+    "prompt_en": "A snowy yard scene shows a snowball thrown toward a brick wall and breaking apart on impact.",
+    "category": "projectile",
+    "source_index": 16
+  },
+  {
+    "video_id": "PR_007",
+    "prompt_en": "A family table scene shows a small clay figurine knocked from the edge, hitting the floor, and breaking into fragments.",
+    "category": "projectile",
+    "source_index": 17
+  },
+  {
+    "video_id": "PR_008",
+    "prompt_en": "A room interior shows a glass jar tipping beside a chair and breaking apart on the floor.",
+    "category": "projectile",
+    "source_index": 18
+  },
+  {
+    "video_id": "PR_009",
+    "prompt_en": "A tabletop scene shows a porcelain teacup struck from the edge, falling, and shattering on the ground.",
+    "category": "projectile",
+    "source_index": 19
+  },
+  {
+    "video_id": "PR_010",
+    "prompt_en": "A night outdoor scene shows a hand-held firework spraying sparks outward as glowing pieces scatter in all directions.",
+    "category": "projectile",
+    "source_index": 20
+  },
+  {
+    "video_id": "SW_001",
+    "prompt_en": "An exterior shop scene shows a hanging sign swinging in the evening wind and slowly settling back toward the center.",
+    "category": "swinging",
+    "source_index": 21
+  },
+  {
+    "video_id": "SW_002",
+    "prompt_en": "An entryway scene shows a keychain on a wall hook swinging back and forth and then growing still.",
+    "category": "swinging",
+    "source_index": 22
+  },
+  {
+    "video_id": "SW_003",
+    "prompt_en": "A playground scene shows a child on a swing moving forward and back while holding a small toy.",
+    "category": "swinging",
+    "source_index": 23
+  },
+  {
+    "video_id": "SW_004",
+    "prompt_en": "A market stall scene shows a paper sign swinging in a gust and rocking back the other way.",
+    "category": "swinging",
+    "source_index": 24
+  },
+  {
+    "video_id": "SW_005",
+    "prompt_en": "A window-side shot shows a bamboo chime swinging and tapping softly before slowing down.",
+    "category": "swinging",
+    "source_index": 25
+  },
+  {
+    "video_id": "SW_006",
+    "prompt_en": "A street scene shows a ribbon on a bike handlebar swinging side to side as the bicycle slows down.",
+    "category": "swinging",
+    "source_index": 26
+  },
+  {
+    "video_id": "SW_007",
+    "prompt_en": "A living room shot shows a small hanging ornament swinging after being bumped and then settling.",
+    "category": "swinging",
+    "source_index": 27
+  },
+  {
+    "video_id": "SW_008",
+    "prompt_en": "A backstage scene shows a fabric banner swinging gently and then slowing.",
+    "category": "swinging",
+    "source_index": 28
+  },
+  {
+    "video_id": "SW_009",
+    "prompt_en": "A market scene shows a shopping bag swinging from a wrist as the person comes to a stop.",
+    "category": "swinging",
+    "source_index": 29
+  },
+  {
+    "video_id": "SW_010",
+    "prompt_en": "Inside a car, a hanging charm swings from the mirror and gradually settles after the car stops.",
+    "category": "swinging",
+    "source_index": 30
+  },
+  {
+    "video_id": "CP_001",
+    "prompt_en": "A desk close-up shows a foam ball squeezed flat and then slowly rounding back out.",
+    "category": "compression",
+    "source_index": 31
+  },
+  {
+    "video_id": "CP_002",
+    "prompt_en": "A tabletop shot shows a spring toy pressed down, released, and vibrating up and down.",
+    "category": "compression",
+    "source_index": 32
+  },
+  {
+    "video_id": "CP_003",
+    "prompt_en": "A kitchen sink close-up shows a sponge squeezed thin and then swelling back as it is released.",
+    "category": "compression",
+    "source_index": 33
+  },
+  {
+    "video_id": "CP_004",
+    "prompt_en": "A bathroom shot shows a rubber duck pressed inward and then popping back with a wobble.",
+    "category": "compression",
+    "source_index": 34
+  },
+  {
+    "video_id": "CP_005",
+    "prompt_en": "A couch scene shows a pillow pressed down, denting deeply, and then slowly lifting back up.",
+    "category": "compression",
+    "source_index": 35
+  },
+  {
+    "video_id": "CP_006",
+    "prompt_en": "A work desk close-up shows a stress ball squeezed out of shape and then returning to round.",
+    "category": "compression",
+    "source_index": 36
+  },
+  {
+    "video_id": "CP_007",
+    "prompt_en": "A kitchen scene shows a soda can crushed inward and staying bent and folded.",
+    "category": "compression",
+    "source_index": 37
+  },
+  {
+    "video_id": "CP_008",
+    "prompt_en": "A backyard trampoline scene shows the mat sagging under a step, rebounding upward, and continuing to bounce.",
+    "category": "compression",
+    "source_index": 38
+  },
+  {
+    "video_id": "CP_009",
+    "prompt_en": "A kitchen counter close-up shows a loaf of bread pressed flat and then slowly rising back.",
+    "category": "compression",
+    "source_index": 39
+  },
+  {
+    "video_id": "CP_010",
+    "prompt_en": "A street-side shot shows a car tire rolling over a curb, squashing at the bottom, and rounding out again.",
+    "category": "compression",
+    "source_index": 40
+  },
+  {
+    "video_id": "SP_001",
+    "prompt_en": "A tabletop close-up shows a spinning coin circling, wobbling, and then falling flat.",
+    "category": "spinning",
+    "source_index": 41
+  },
+  {
+    "video_id": "SP_002",
+    "prompt_en": "A family room scene shows a toy top spinning on the wooden floor, tilting, and slowing to a stop.",
+    "category": "spinning",
+    "source_index": 42
+  },
+  {
+    "video_id": "SP_003",
+    "prompt_en": "A desk close-up shows a fidget spinner turning beside a notebook and gradually losing speed.",
+    "category": "spinning",
+    "source_index": 43
+  },
+  {
+    "video_id": "SP_004",
+    "prompt_en": "A dining table scene shows a bottle flip rotating once, landing upright, and rocking with a wobble.",
+    "category": "spinning",
+    "source_index": 44
+  },
+  {
+    "video_id": "SP_005",
+    "prompt_en": "A garage shot shows a bicycle wheel spinning in the air and slowly losing speed.",
+    "category": "spinning",
+    "source_index": 45
+  },
+  {
+    "video_id": "SP_006",
+    "prompt_en": "A fairground shot shows a merry-go-round spinning quickly and then slowing down.",
+    "category": "spinning",
+    "source_index": 46
+  },
+  {
+    "video_id": "SP_007",
+    "prompt_en": "A performance scene shows a plate spinning on a stick, beginning to wobble, and nearly falling off.",
+    "category": "spinning",
+    "source_index": 47
+  },
+  {
+    "video_id": "SP_008",
+    "prompt_en": "A workshop close-up shows a drill turning a screw into a wooden board and slowing as it reaches the end.",
+    "category": "spinning",
+    "source_index": 48
+  },
+  {
+    "video_id": "SP_009",
+    "prompt_en": "A roadside stand scene shows a windmill decoration rotating in the wind and then slowing between gusts.",
+    "category": "spinning",
+    "source_index": 49
+  },
+  {
+    "video_id": "SP_010",
+    "prompt_en": "A courtyard evening shot shows a child spinning with a sparkler and tracing a bright circle of light.",
+    "category": "spinning",
+    "source_index": 50
+  },
+  {
+    "video_id": "RO_001",
+    "prompt_en": "A tabletop shot shows an orange being nudged, rolling forward, and slowly coming to rest.",
+    "category": "rolling",
+    "source_index": 51
+  },
+  {
+    "video_id": "RO_002",
+    "prompt_en": "A living room scene shows a small marble released down a toy ramp, rolling across the floor, and stopping near a chair.",
+    "category": "rolling",
+    "source_index": 52
+  },
+  {
+    "video_id": "RO_003",
+    "prompt_en": "A kitchen floor shot shows a soda can pushed on its side, rolling forward with a wobble, and tipping over.",
+    "category": "rolling",
+    "source_index": 53
+  },
+  {
+    "video_id": "RO_004",
+    "prompt_en": "A sidewalk curb scene shows a soccer ball kicked lightly, rolling forward, and gradually slowing to a stop.",
+    "category": "rolling",
+    "source_index": 54
+  },
+  {
+    "video_id": "RO_005",
+    "prompt_en": "A kitchen counter shot shows a wooden rolling pin bumped, rolling away, and settling near a bowl.",
+    "category": "rolling",
+    "source_index": 55
+  },
+  {
+    "video_id": "RO_006",
+    "prompt_en": "A tabletop close-up shows a coin spun onto its edge, rolling forward with a wobble, and then falling flat.",
+    "category": "rolling",
+    "source_index": 56
+  },
+  {
+    "video_id": "RO_007",
+    "prompt_en": "A doorway scene shows a suitcase wheel rolling through the threshold and bumping over the edge.",
+    "category": "rolling",
+    "source_index": 57
+  },
+  {
+    "video_id": "RO_008",
+    "prompt_en": "A painted wall shot shows a paint roller moving upward, rolling smoothly, and leaving a fresh band behind it.",
+    "category": "rolling",
+    "source_index": 58
+  },
+  {
+    "video_id": "RO_009",
+    "prompt_en": "A neighborhood street scene shows a skateboard given a push, rolling past parked cars, and carving slightly before slowing.",
+    "category": "rolling",
+    "source_index": 59
+  },
+  {
+    "video_id": "RO_010",
+    "prompt_en": "An outdoor market scene shows a barrel shoved forward, rolling over uneven ground, and bumping from side to side.",
+    "category": "rolling",
+    "source_index": 60
+  },
+  {
+    "video_id": "BO_001",
+    "prompt_en": "A gym floor shot shows a rubber ball hitting hard, rebounding high, and then bouncing lower each time until it stops.",
+    "category": "bouncing",
+    "source_index": 61
+  },
+  {
+    "video_id": "BO_002",
+    "prompt_en": "A table tennis scene shows a ping-pong ball tapping the paddle, springing upward, and bouncing in short arcs.",
+    "category": "bouncing",
+    "source_index": 62
+  },
+  {
+    "video_id": "BO_003",
+    "prompt_en": "A basketball court scene shows a basketball hitting the ground, rebounding upward, and repeating in a steady rhythm.",
+    "category": "bouncing",
+    "source_index": 63
+  },
+  {
+    "video_id": "BO_004",
+    "prompt_en": "A hallway shot shows a superball bouncing high, hitting the wall, and ricocheting in a new direction.",
+    "category": "bouncing",
+    "source_index": 64
+  },
+  {
+    "video_id": "BO_005",
+    "prompt_en": "A tennis court scene shows a tennis ball thrown against a wall, rebounding back, and kicking upward after landing.",
+    "category": "bouncing",
+    "source_index": 65
+  },
+  {
+    "video_id": "BO_006",
+    "prompt_en": "A tabletop close-up shows a small metal ball bearing making quick tiny bounces and then transitioning into a roll.",
+    "category": "bouncing",
+    "source_index": 66
+  },
+  {
+    "video_id": "BO_007",
+    "prompt_en": "A living room scene shows a foam ball dropping onto a carpet, squashing on impact, and barely bouncing back up.",
+    "category": "bouncing",
+    "source_index": 67
+  },
+  {
+    "video_id": "BO_008",
+    "prompt_en": "A sidewalk shot shows a soccer ball hitting the ground, bouncing once more, and then skidding forward.",
+    "category": "bouncing",
+    "source_index": 68
+  },
+  {
+    "video_id": "BO_009",
+    "prompt_en": "A stone stairway scene shows a pebble bouncing from one step to the next before rolling away.",
+    "category": "bouncing",
+    "source_index": 69
+  },
+  {
+    "video_id": "BO_010",
+    "prompt_en": "A wooden floor close-up shows a metal key landing, flipping once, making a final small bounce, and coming to rest.",
+    "category": "bouncing",
+    "source_index": 70
+  },
+  {
+    "video_id": "FL_001",
+    "prompt_en": "A tabletop shot shows water pouring from a pitcher into tea cups as ripples spread across the surface.",
+    "category": "fluid_flowing",
+    "source_index": 71
+  },
+  {
+    "video_id": "FL_002",
+    "prompt_en": "A dessert close-up shows honey dripping from a spoon onto a plate and gathering into a thick pool.",
+    "category": "fluid_flowing",
+    "source_index": 72
+  },
+  {
+    "video_id": "FL_003",
+    "prompt_en": "A coffee close-up shows milk poured into black coffee and swirling into pale patterns.",
+    "category": "fluid_flowing",
+    "source_index": 73
+  },
+  {
+    "video_id": "FL_004",
+    "prompt_en": "A kitchen sink scene shows a faucet turned on and water streaming into a basin of dishes.",
+    "category": "fluid_flowing",
+    "source_index": 74
+  },
+  {
+    "video_id": "FL_005",
+    "prompt_en": "A stovetop close-up shows oil poured into a hot pan and spreading outward into a shiny layer.",
+    "category": "fluid_flowing",
+    "source_index": 75
+  },
+  {
+    "video_id": "FL_006",
+    "prompt_en": "A garden stream shot shows water flowing around stones and splitting into small currents.",
+    "category": "fluid_flowing",
+    "source_index": 76
+  },
+  {
+    "video_id": "FL_007",
+    "prompt_en": "A riverbank scene shows a small wave washing onto the shore and pulling back.",
+    "category": "fluid_flowing",
+    "source_index": 77
+  },
+  {
+    "video_id": "FL_008",
+    "prompt_en": "A tabletop close-up shows soda poured into a glass and foam rising to the top.",
+    "category": "fluid_flowing",
+    "source_index": 78
+  },
+  {
+    "video_id": "FL_009",
+    "prompt_en": "A craft table scene shows red paint poured onto a paper sign and spreading outward.",
+    "category": "fluid_flowing",
+    "source_index": 79
+  },
+  {
+    "video_id": "FL_010",
+    "prompt_en": "A yard scene shows water sloshing from side to side inside a bucket while it moves across the frame.",
+    "category": "fluid_flowing",
+    "source_index": 80
+  },
+  {
+    "video_id": "FT_001",
+    "prompt_en": "A stream close-up shows a leaf floating on the water, drifting forward, and circling in a small eddy.",
+    "category": "floating",
+    "source_index": 81
+  },
+  {
+    "video_id": "FT_002",
+    "prompt_en": "A rainy street close-up shows a paper boat floating in a puddle, rocking gently, and then leveling out.",
+    "category": "floating",
+    "source_index": 82
+  },
+  {
+    "video_id": "FT_003",
+    "prompt_en": "A bathtub shot shows a rubber duck floating and turning slowly on the water.",
+    "category": "floating",
+    "source_index": 83
+  },
+  {
+    "video_id": "FT_004",
+    "prompt_en": "A drink close-up shows an ice cube floating near the rim of a glass and slowly rotating.",
+    "category": "floating",
+    "source_index": 84
+  },
+  {
+    "video_id": "FT_005",
+    "prompt_en": "A sink close-up shows a bottle cap floating in water and drifting toward the drain.",
+    "category": "floating",
+    "source_index": 85
+  },
+  {
+    "video_id": "FT_006",
+    "prompt_en": "A bucket close-up shows a ping-pong ball floating, bobbing up and down, and sliding sideways with the water.",
+    "category": "floating",
+    "source_index": 86
+  },
+  {
+    "video_id": "FT_007",
+    "prompt_en": "A basin shot shows a small sponge floating and tipping slightly as one side gets wet.",
+    "category": "floating",
+    "source_index": 87
+  },
+  {
+    "video_id": "FT_008",
+    "prompt_en": "A backyard pool scene shows a foam cup floating and gliding across the surface.",
+    "category": "floating",
+    "source_index": 88
+  },
+  {
+    "video_id": "FT_009",
+    "prompt_en": "A close-up in a courtyard shows a soap bubble floating upward, drifting, and then popping.",
+    "category": "floating",
+    "source_index": 89
+  },
+  {
+    "video_id": "FT_010",
+    "prompt_en": "A bowl close-up shows a slice of orange floating in punch and rotating slowly near the edge.",
+    "category": "floating",
+    "source_index": 90
+  },
+  {
+    "video_id": "SL_001",
+    "prompt_en": "A pond scene at night shows a stone dropping into the water, throwing up a splash, and sending ripples across the surface.",
+    "category": "splashing",
+    "source_index": 91
+  },
+  {
+    "video_id": "SL_002",
+    "prompt_en": "A city sidewalk puddle scene shows a foot stepping down and water spraying outward in all directions.",
+    "category": "splashing",
+    "source_index": 92
+  },
+  {
+    "video_id": "SL_003",
+    "prompt_en": "A kitchen table shot shows a cup tipping over and tea splashing across the surface and over the edge.",
+    "category": "splashing",
+    "source_index": 93
+  },
+  {
+    "video_id": "SL_004",
+    "prompt_en": "A river scene shows a fish jumping and throwing up a burst of spray.",
+    "category": "splashing",
+    "source_index": 94
+  },
+  {
+    "video_id": "SL_005",
+    "prompt_en": "A backyard pool shot shows a ball tossed into the water and making a deep splash with water rising upward.",
+    "category": "splashing",
+    "source_index": 95
+  },
+  {
+    "video_id": "SL_006",
+    "prompt_en": "A rainy street close-up shows raindrops hitting a puddle and tiny splashes overlapping across the surface.",
+    "category": "splashing",
+    "source_index": 96
+  },
+  {
+    "video_id": "SL_007",
+    "prompt_en": "A worktable close-up shows water flicking outward from a paintbrush and scattering into droplets.",
+    "category": "splashing",
+    "source_index": 97
+  },
+  {
+    "video_id": "SL_008",
+    "prompt_en": "A riverbank scene shows a wave bursting against a rock into white spray and then falling back down.",
+    "category": "splashing",
+    "source_index": 98
+  },
+  {
+    "video_id": "SL_009",
+    "prompt_en": "A stone floor shot shows a bucket of water poured out and splashing in all directions.",
+    "category": "splashing",
+    "source_index": 99
+  },
+  {
+    "video_id": "SL_010",
+    "prompt_en": "A lakefront scene shows a fast boat passing by a dock and throwing spray up from the bow.",
+    "category": "splashing",
+    "source_index": 100
+  }
+]

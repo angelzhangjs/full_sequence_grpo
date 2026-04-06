@@ -1,0 +1,1 @@
+ static camera shows a rubber duck floating in a bathtub. The duck rocks gently, turns with the current, and bumps the side of the tub.

@@ -1,0 +1,407 @@
+{
+    "imaging_quality": [
+        0.7037978164441655,
+        [
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/BO_001.mp4",
+                "video_results": 52.86552093968247
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/BO_002.mp4",
+                "video_results": 71.28106227065578
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/BO_003.mp4",
+                "video_results": 73.34703757546164
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/BO_004.mp4",
+                "video_results": 73.35719680786133
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/BO_005.mp4",
+                "video_results": 74.16007255785394
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/BO_006.mp4",
+                "video_results": 64.66239316535719
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/BO_007.mp4",
+                "video_results": 76.46662209250711
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/BO_008.mp4",
+                "video_results": 69.18471631136808
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/BO_009.mp4",
+                "video_results": 71.35499688350794
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/BO_010.mp4",
+                "video_results": 62.92686624237985
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/CP_001.mp4",
+                "video_results": 66.64782414291844
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/CP_002.mp4",
+                "video_results": 73.12894393458511
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/CP_003.mp4",
+                "video_results": 72.58483285614939
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/CP_004.mp4",
+                "video_results": 73.12419452089252
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/CP_005.mp4",
+                "video_results": 78.38258477413294
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/CP_006.mp4",
+                "video_results": 72.53534652247573
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/CP_007.mp4",
+                "video_results": 74.00815975304806
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/CP_008.mp4",
+                "video_results": 77.3561352816495
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/CP_009.mp4",
+                "video_results": 77.33282285748106
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/CP_010.mp4",
+                "video_results": 76.93842338793206
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FA_001.mp4",
+                "video_results": 78.89014180501302
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FA_002.mp4",
+                "video_results": 71.80629776463364
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FA_003.mp4",
+                "video_results": 79.44719326134884
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FA_004.mp4",
+                "video_results": 74.74624125162761
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FA_005.mp4",
+                "video_results": 68.43172558871183
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FA_006.mp4",
+                "video_results": 64.79701926491477
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FA_007.mp4",
+                "video_results": 78.77277374267578
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FA_008.mp4",
+                "video_results": 50.395641789291844
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FA_009.mp4",
+                "video_results": 78.9155580925219
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FA_010.mp4",
+                "video_results": 69.12057402639678
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FL_001.mp4",
+                "video_results": 63.919548497055516
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FL_002.mp4",
+                "video_results": 74.76963875510476
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FL_003.mp4",
+                "video_results": 61.690452691280484
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FL_004.mp4",
+                "video_results": 77.9400327277906
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FL_005.mp4",
+                "video_results": 68.62066199562766
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FL_006.mp4",
+                "video_results": 77.48219646107067
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FL_007.mp4",
+                "video_results": 58.28499765107126
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FL_008.mp4",
+                "video_results": 61.60500566887133
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FL_009.mp4",
+                "video_results": 78.84803771972656
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FL_010.mp4",
+                "video_results": 73.69870896772905
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FT_001.mp4",
+                "video_results": 64.60198442863695
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FT_002.mp4",
+                "video_results": 64.55421355276397
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FT_003.mp4",
+                "video_results": 69.70759975548947
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FT_004.mp4",
+                "video_results": 68.13572415438566
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FT_005.mp4",
+                "video_results": 76.6801494251598
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FT_006.mp4",
+                "video_results": 63.249805912827
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FT_007.mp4",
+                "video_results": 59.54035394841974
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FT_008.mp4",
+                "video_results": 65.51717815977155
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FT_009.mp4",
+                "video_results": 77.97166558467981
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/FT_010.mp4",
+                "video_results": 66.82072414051403
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/PR_001.mp4",
+                "video_results": 70.83567833177972
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/PR_002.mp4",
+                "video_results": 72.80559828787139
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/PR_003.mp4",
+                "video_results": 74.91518714211203
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/PR_004.mp4",
+                "video_results": 73.35414643721147
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/PR_005.mp4",
+                "video_results": 68.87051391601562
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/PR_006.mp4",
+                "video_results": 76.96676681980942
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/PR_007.mp4",
+                "video_results": 77.22926839192708
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/PR_008.mp4",
+                "video_results": 77.45331642844461
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/PR_009.mp4",
+                "video_results": 66.54246486317028
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/PR_010.mp4",
+                "video_results": 58.962898485588305
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/RO_001.mp4",
+                "video_results": 72.38001944802024
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/RO_002.mp4",
+                "video_results": 78.56167371345289
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/RO_003.mp4",
+                "video_results": 76.38725049567945
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/RO_004.mp4",
+                "video_results": 74.70553057121508
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/RO_005.mp4",
+                "video_results": 70.10247744935931
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/RO_006.mp4",
+                "video_results": 70.33534125125769
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/RO_007.mp4",
+                "video_results": 75.5195444280451
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/RO_008.mp4",
+                "video_results": 68.18567299120355
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/RO_009.mp4",
+                "video_results": 78.59856068004261
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/RO_010.mp4",
+                "video_results": 79.6523832841353
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SL_001.mp4",
+                "video_results": 58.888533967914
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SL_002.mp4",
+                "video_results": 60.10931824192856
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SL_003.mp4",
+                "video_results": 79.33834515195905
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SL_004.mp4",
+                "video_results": 54.09945077607126
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SL_005.mp4",
+                "video_results": 61.903465964577414
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SL_006.mp4",
+                "video_results": 53.60869621508049
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SL_007.mp4",
+                "video_results": 71.41418826941288
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SL_008.mp4",
+                "video_results": 78.52460040468158
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SL_009.mp4",
+                "video_results": 65.3379064617735
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SL_010.mp4",
+                "video_results": 72.22537901907256
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SP_001.mp4",
+                "video_results": 69.06357042717211
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SP_002.mp4",
+                "video_results": 75.70706153638434
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SP_003.mp4",
+                "video_results": 73.79246266682942
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SP_004.mp4",
+                "video_results": 79.46122926654238
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SP_005.mp4",
+                "video_results": 58.541338949492484
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SP_006.mp4",
+                "video_results": 77.34801136363636
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SP_007.mp4",
+                "video_results": 64.5113252581972
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SP_008.mp4",
+                "video_results": 68.77514509721236
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SP_009.mp4",
+                "video_results": 71.12917258522727
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SP_010.mp4",
+                "video_results": 69.03093072139856
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SW_001.mp4",
+                "video_results": 78.61711791067412
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SW_002.mp4",
+                "video_results": 76.73778996323094
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SW_003.mp4",
+                "video_results": 60.172054175174594
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SW_004.mp4",
+                "video_results": 73.5176229765921
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SW_005.mp4",
+                "video_results": 65.13599985296077
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SW_006.mp4",
+                "video_results": 72.76498158772786
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SW_007.mp4",
+                "video_results": 56.081819129712656
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SW_008.mp4",
+                "video_results": 77.76593040697503
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SW_009.mp4",
+                "video_results": 66.46054886326645
+            },
+            {
+                "video_path": "/home/ubuntu/angel-research/experiment/newyear_physics_prompts_100_20260325_074250_grpo_video_id/SW_010.mp4",
+                "video_results": 64.94227415142637
+            }
+        ]
+    ]
+}

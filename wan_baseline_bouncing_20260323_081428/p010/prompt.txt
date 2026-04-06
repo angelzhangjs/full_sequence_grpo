@@ -1,0 +1,1 @@
+ static camera shows a metal key dropped onto the floor. The key strikes the ground, flips once, makes a small bounce, and then lands still.

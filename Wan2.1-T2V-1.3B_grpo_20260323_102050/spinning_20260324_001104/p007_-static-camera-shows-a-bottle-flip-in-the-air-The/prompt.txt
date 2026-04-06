@@ -1,0 +1,1 @@
+ static camera shows a bottle flip in the air. The bottle rotates once, lands upright, and makes a small wobble.

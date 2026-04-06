@@ -311,3 +311,14 @@ __pycache__/
 .nfs*
 setup/Anaconda3-2024.02-1-Linux-x86_64.sh
 batch_grpo_20260215_052728/
+# Large video / media (batch experiments)
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+*.flv
+*.wmv
+*.m4v
+*.mpeg
+*.mpg

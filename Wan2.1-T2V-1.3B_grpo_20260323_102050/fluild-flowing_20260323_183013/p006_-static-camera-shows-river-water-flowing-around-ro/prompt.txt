@@ -1,0 +1,1 @@
+ static camera shows river water flowing around rocks. The current splits around each rock and small swirls appear behind them.

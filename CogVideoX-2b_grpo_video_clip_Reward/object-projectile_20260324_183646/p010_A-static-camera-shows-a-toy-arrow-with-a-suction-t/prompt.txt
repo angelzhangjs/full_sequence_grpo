@@ -1,0 +1,1 @@
+A static camera shows a toy arrow with a suction tip fired at a window. The arrow flies straight, sticks to the glass, and then slowly slides downward.

@@ -1,0 +1,1 @@
+ static camera shows a child on a swing. The swing moves back and forth, and each push makes the seat rise a little higher.

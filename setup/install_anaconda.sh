@@ -51,6 +51,28 @@ bash "${INSTALLER_FILE}" -b -p "${PREFIX}"
 echo "==> Initializing conda for bash..."
 "${PREFIX}/bin/conda" init bash
 
+# Ensure conda initialize block is in ~/.bashrc (in case conda init didn't add it)
+CONDA_BLOCK='# >>> conda initialize >>>'
+if ! grep -qF "$CONDA_BLOCK" "$HOME/.bashrc" 2>/dev/null; then
+  echo "==> Appending conda initialize block to ~/.bashrc..."
+  cat >> "$HOME/.bashrc" << CONDAINIT
+
+# >>> conda initialize >>>
+__conda_setup="\$("${PREFIX}/bin/conda" 'shell.bash' 'hook' 2> /dev/null)"
+if [ \$? -eq 0 ]; then
+    eval "\$__conda_setup"
+else
+    if [ -f "${PREFIX}/etc/profile.d/conda.sh" ]; then
+        . "${PREFIX}/etc/profile.d/conda.sh"
+    else
+        export PATH="${PREFIX}/bin:\$PATH"
+    fi
+fi
+unset __conda_setup
+# <<< conda initialize <<<
+CONDAINIT
+fi
+
 echo "==> Reloading shell config (~/.bashrc) for this session..."
 # shellcheck disable=SC1090
 source "$HOME/.bashrc" || true
