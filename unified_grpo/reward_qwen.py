@@ -24,7 +24,7 @@ import torch
 
 @dataclass
 class QwenRewardConfig:
-    model_id: str = "Qwen/Qwen2-VL-2B-Instruct"
+    model_id: str = "Qwen/Qwen2-VL-7B-Instruct"
     num_sampled_frames: int = 8
     max_new_tokens: int = 192
     temperature: float = 0.0
@@ -81,7 +81,6 @@ def _lazy_load_qwen(*, model_id: str, device: torch.device) -> tuple[Any, Any]:
 
     _QWEN_MODEL, _QWEN_PROCESSOR = model, processor
     return model, processor
-
 
 def _video_to_pil_frames(
     video: torch.Tensor,
@@ -345,7 +344,6 @@ def main() -> None:  # pragma: no cover
         ),
     )
     print(json.dumps(scores, indent=2))
-
 
 if __name__ == "__main__":  # pragma: no cover
     main()
