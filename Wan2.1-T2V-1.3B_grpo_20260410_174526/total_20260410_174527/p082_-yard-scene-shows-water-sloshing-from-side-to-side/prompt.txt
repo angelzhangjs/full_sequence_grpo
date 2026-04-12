@@ -1,0 +1,1 @@
+ yard scene shows water sloshing from side to side inside a bucket while it moves across the frame.

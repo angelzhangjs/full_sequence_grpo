@@ -21,8 +21,8 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # Prevent user-site packages (~/.local) from shadowing the conda env.
 export PYTHONNOUSERSITE=1
 
-# Single prompt file (one prompt per line). Default: New Year physics prompt set.
-PROMPTS_FILE="${PROMPTS_FILE:-origin_grpo/newyear_physics_prompts_100.txt}"
+# Single prompt file (one prompt per line). Default: total.txt (500 prompts on main branch).
+PROMPTS_FILE="${PROMPTS_FILE:-total.txt}"
 
 echo "======================================================================"
 echo "BATCH GRPO TRAINING - PROMPTS FROM ${PROMPTS_FILE}"
@@ -242,7 +242,7 @@ echo "Output: $BATCH_DIR/"
 echo ""
 echo "Structure:"
 echo "  <model_name>_grpo_YYYYMMDD_HHMMSS/"
-echo "  └── newyear_physics_prompts_100_YYYYMMDD_HHMMSS/"
+echo "  └── total_YYYYMMDD_HHMMSS/   (or <promptfile_basename>_YYYYMMDD_HHMMSS/)"
 echo "      ├── p001_*/"
 echo "      │   ├── baseline/baseline.mp4 (+ baseline_snapshot.png)"
 echo "      │   ├── grpo/cogvideox_grpo.mp4 (+ cogvideox_grpo_snapshot.png)"
