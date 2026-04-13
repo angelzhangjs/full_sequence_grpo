@@ -1,10 +1,11 @@
 from __future__ import annotations, generator_stop
+from contextlib import nullcontext
 import random as random
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 import torch
-from unified_grpo.adapters.base import StepContext, VideoGRPOAdapter
+from unified_grpo.adapters.base import StepContext, VideoGRPOAdapter, get_trainable_module, set_trainable_module
 from unified_grpo.utils import (
     save_rgb_frame_png,
     save_denoising_trajectory_strip_png,
@@ -383,6 +384,7 @@ def run_grpo_for_prompt(
     cfg: GRPOConfig = GRPOConfig(),
     model_type: None | str = None,
     extra_trainable_parameters: Optional[List[torch.nn.Parameter]] = None,
+    accelerator=None,
 ) -> Dict[str, float]:
     """
     Unified GRPO loop over the last N timesteps.
@@ -395,43 +397,37 @@ def run_grpo_for_prompt(
 
     Returns summary metrics.
     """
-    device = adapter.device()
+    device = accelerator.device if accelerator is not None else adapter.device()
     timesteps = adapter.get_timesteps(num_inference_steps=int(cfg.num_inference_steps))
     if len(timesteps) == 0:
         raise ValueError("Adapter returned empty timesteps.")
 
     last_start = max(0, len(timesteps) - int(cfg.num_grpo_steps))
 
+    trainable_module = get_trainable_module(adapter)
+
     # Prepare trainable params + optimizer.
     params = adapter.trainable_parameters()
+    if (
+        accelerator is not None
+        and getattr(getattr(accelerator, "distributed_type", None), "name", "") == "DEEPSPEED"
+        and extra_trainable_parameters
+    ):
+        raise ValueError(
+            "DeepSpeed ZeRO-3 currently supports only the main video model fine-tuning path. "
+            "Auxiliary trainable modules are not supported yet."
+        )
     if extra_trainable_parameters:
         params = list(params) + [p for p in extra_trainable_parameters if getattr(p, "requires_grad", False)]
     if len(params) == 0:
         raise ValueError(f"Adapter '{adapter.name}' returned 0 trainable parameters.")
-    
-    opt = torch.optim.AdamW(params, lr=float(cfg.lr), betas=(0.9, 0.999), weight_decay=0.01)
-    # AMP GradScaler notes:
-    # - GradScaler is primarily for fp16 training and expects to unscale fp16 grads into fp32.
-    # - It is NOT needed for bf16, and PyTorch will error on CUDA when trying to unscale bf16 grads:
-    #     NotImplementedError: "_amp_foreach_non_finite_check_and_unscale_cuda" not implemented for 'BFloat16'
-    # - It also errors if the *parameters* (and thus grads) are fp16 ("Attempting to unscale FP16 gradients.")
-    #
-    # So we only enable GradScaler when params are fp32 (common AMP setup: fp32 weights + autocast fp16 ops).
-    use_scaler = device.type == "cuda" and all(
-        getattr(p, "dtype", None) == torch.float32 for p in params
-    )
-    scaler = torch.amp.GradScaler("cuda", enabled=bool(use_scaler))
-
-    latents = adapter.prepare_latents(seed=int(seed)).to(device)
-    solver_state: Optional[Any] = None
 
     # ── Gradient checkpointing (optional VRAM saver) ──────────────────────────────
     # Enable on the adapter's transformer so intermediate activations are NOT all
     # stored during the differentiable forward pass. Instead PyTorch recomputes them
     # during backward. Tradeoff: ~30% more compute, ~50% less activation VRAM.
     if cfg.gradient_checkpointing:
-        model = getattr(adapter, "pipeline", None)
-        model = getattr(model, "transformer", None) if model is not None else getattr(adapter, "transformer", None)
+        model = trainable_module
         if model is not None and hasattr(model, "enable_gradient_checkpointing"):
             try:
                 # Diffusers-style models.
@@ -462,13 +458,35 @@ def run_grpo_for_prompt(
             else:
                 print("⚠️  gradient_checkpointing=True but no compatible module found (skipped).")
 
+    opt = torch.optim.AdamW(params, lr=float(cfg.lr), betas=(0.9, 0.999), weight_decay=0.01)
+    if accelerator is not None:
+        trainable_module, opt = accelerator.prepare(trainable_module, opt)
+        set_trainable_module(adapter, trainable_module)
+        params = [p for p in trainable_module.parameters() if p.requires_grad]
+
+    # AMP GradScaler notes:
+    # - GradScaler is primarily for fp16 training and expects to unscale fp16 grads into fp32.
+    # - It is NOT needed for bf16, and PyTorch will error on CUDA when trying to unscale bf16 grads:
+    #     NotImplementedError: "_amp_foreach_non_finite_check_and_unscale_cuda" not implemented for 'BFloat16'
+    # - It also errors if the *parameters* (and thus grads) are fp16 ("Attempting to unscale FP16 gradients.")
+    #
+    # When Accelerate manages mixed precision, it owns scaling/unscaling behavior.
+    use_scaler = accelerator is None and device.type == "cuda" and all(
+        getattr(p, "dtype", None) == torch.float32 for p in params
+    )
+    scaler = torch.amp.GradScaler("cuda", enabled=bool(use_scaler))
+
+    latents = adapter.prepare_latents(seed=int(seed)).to(device)
+    solver_state: Optional[Any] = None
+
     last_loss = 0.0
     last_mean_r = 0.0
     last_std_r = 0.0
     adv: Optional[torch.Tensor] = None
 
-    save_strip = bool(out_dir is not None and getattr(cfg, "save_denoising_trajectory_strip_png", False))
-    save_step_snapshots = bool(out_dir is not None and getattr(cfg, "save_denoising_step_snapshots", False))
+    should_save_outputs = bool(out_dir is not None and (accelerator is None or accelerator.is_main_process))
+    save_strip = bool(should_save_outputs and getattr(cfg, "save_denoising_trajectory_strip_png", False))
+    save_step_snapshots = bool(should_save_outputs and getattr(cfg, "save_denoising_step_snapshots", False))
     strip_frames: List[Any] = []
 
     strip_stride = max(1, int(getattr(cfg, "denoising_strip_step_stride", 5)))
@@ -557,8 +575,13 @@ def run_grpo_for_prompt(
         rollout_rewards = torch.stack(rollout.rollout_rewards)  # [K]
         adv = normalize_advantages(rollout_rewards, normalize=bool(cfg.normalize_advantages))
 
-        last_mean_r = float(rollout_rewards.mean().item())
-        last_std_r = float(rollout_rewards.std(unbiased=False).item())
+        rewards_mean = rollout_rewards.mean().detach()
+        rewards_std = rollout_rewards.std(unbiased=False).detach()
+        if accelerator is not None:
+            rewards_mean = accelerator.reduce(rewards_mean, reduction="mean")
+            rewards_std = accelerator.reduce(rewards_std, reduction="mean")
+        last_mean_r = float(rewards_mean.item())
+        last_std_r = float(rewards_std.item())
         
         print(f"  Rewards: mean={last_mean_r:.4f}, std={last_std_r:.4f}")
 
@@ -566,50 +589,59 @@ def run_grpo_for_prompt(
         # 2) Compute GRPO loss and update model weights
         # ---------------------------
         print(f"\n  Computing GRPO loss (best rollout: #{rollout.best_rollout_index})...")
-        opt.zero_grad(set_to_none=True)
-        torch.cuda.empty_cache()
+        step_cm = accelerator.accumulate(trainable_module) if accelerator is not None else nullcontext()
+        with step_cm:
+            opt.zero_grad(set_to_none=True)
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
-        # (a) Recompute action_best with gradients from the best-reward rollout's input latents.
-        #     Compute Gaussian log-prob surrogates: logp(a_k|pi_theta) ~ -||action_best - a_k||^2 / (2σ²)
-        #     logps_t[k] is HIGH when action_best is similar to rollout k's action.
-        action_best, logps_t = recompute_action_and_logps(
-            adapter=adapter,
-            best_input_latents_cpu=rollout.best_input_latents_cpu,
-            step_context=step_context,
-            solver_state=solver_state,
-            rollout_actions_cpu=rollout.rollout_actions_cpu,
-            logprob_sigma=float(cfg.logprob_sigma),
-            device=device,
-        )
+            # (a) Recompute action_best with gradients from the best-reward rollout's input latents.
+            #     Compute Gaussian log-prob surrogates: logp(a_k|pi_theta) ~ -||action_best - a_k||^2 / (2σ²)
+            #     logps_t[k] is HIGH when action_best is similar to rollout k's action.
+            action_best, logps_t = recompute_action_and_logps(
+                adapter=adapter,
+                best_input_latents_cpu=rollout.best_input_latents_cpu,
+                step_context=step_context,
+                solver_state=solver_state,
+                rollout_actions_cpu=rollout.rollout_actions_cpu,
+                logprob_sigma=float(cfg.logprob_sigma),
+                device=device,
+            )
 
-        # (b) GRPO loss: L = -mean_k[ A_k * logp(a_k | pi_theta) ]
-        #     Advantages are detached (from rewards, no grad flows through them).
-        #     Gradients flow: loss → logps_t → action_best → model weights.
-        #
-        #     Gradient effect on model weights:
-        #       A_k > 0 (high reward): PUSH action_best TOWARD a_k → model predicts more like that rollout
-        #       A_k < 0 (low reward):  PUSH action_best AWAY  from a_k → model predicts less like that rollout
-        #
-        #     Net: optimizer.step() moves model weights toward actions that lead to better rewards.
-        adv_for_loss = adv.detach().float() if bool(getattr(cfg, "detach_advantages", True)) else adv.float()
-        loss = -(adv_for_loss * logps_t.float()).mean()
+            # (b) GRPO loss: L = -mean_k[ A_k * logp(a_k | pi_theta) ]
+            #     Advantages are detached (from rewards, no grad flows through them).
+            #     Gradients flow: loss → logps_t → action_best → model weights.
+            #
+            #     Gradient effect on model weights:
+            #       A_k > 0 (high reward): PUSH action_best TOWARD a_k → model predicts more like that rollout
+            #       A_k < 0 (low reward):  PUSH action_best AWAY  from a_k → model predicts less like that rollout
+            #
+            #     Net: optimizer.step() moves model weights toward actions that lead to better rewards.
+            adv_for_loss = adv.detach().float() if bool(getattr(cfg, "detach_advantages", True)) else adv.float()
+            loss = -(adv_for_loss * logps_t.float()).mean()
 
-        # (c) Backward pass + gradient clip + optimizer step
-        print(f"  Backward pass...")
-        if scaler.is_enabled():
-            scaler.scale(loss).backward(retain_graph=False)
-            scaler.unscale_(opt)
-        else:
-            loss.backward(retain_graph=False)
+            # (c) Backward pass + gradient clip + optimizer step
+            print(f"  Backward pass...")
+            if accelerator is not None:
+                accelerator.backward(loss)
+                if accelerator.sync_gradients:
+                    accelerator.clip_grad_norm_(params, float(cfg.grad_clip))
+                opt.step()
+            elif scaler.is_enabled():
+                scaler.scale(loss).backward(retain_graph=False)
+                scaler.unscale_(opt)
+                torch.nn.utils.clip_grad_norm_(params, float(cfg.grad_clip))
+                scaler.step(opt)
+                scaler.update()
+            else:
+                loss.backward(retain_graph=False)
+                torch.nn.utils.clip_grad_norm_(params, float(cfg.grad_clip))
+                opt.step()   # ← model weights updated here
 
-        torch.nn.utils.clip_grad_norm_(params, float(cfg.grad_clip))
-        if scaler.is_enabled():
-            scaler.step(opt)
-            scaler.update()
-        else:
-            opt.step()   # ← model weights updated here
-
-        last_loss = float(loss.detach().cpu().item())
+        reduced_loss = loss.detach()
+        if accelerator is not None:
+            reduced_loss = accelerator.reduce(reduced_loss, reduction="mean")
+        last_loss = float(reduced_loss.float().item())
         
         # ---------------------------
         # 3) Advance trajectory using best rollout BEFORE deleting anything!
@@ -624,11 +656,13 @@ def run_grpo_for_prompt(
         # do NOT del them here to avoid UnboundLocalError if the next step fails before re-assigning.
         
         # Aggressive memory clearing
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
         
         print(f"  ✅ Model updated | Loss: {last_loss:.4f}")
-        print(f"  GPU free: {torch.cuda.mem_get_info()[0] / 1024**3:.1f} GB")
+        if torch.cuda.is_available():
+            print(f"  GPU free: {torch.cuda.mem_get_info()[0] / 1024**3:.1f} GB")
 
     if save_strip and strip_frames:
         strip_path = Path(out_dir) / "denoising_trajectory_strip.png"
@@ -645,7 +679,7 @@ def run_grpo_for_prompt(
         print(f"🖼️  Per-step denoising snapshots saved: {step_snapshot_dir}")
 
     # Save final video as MP4 (watchable format)
-    if out_dir is not None:
+    if should_save_outputs and out_dir is not None:
         out_dir.mkdir(parents=True, exist_ok=True)
         base = f"{model_type}_grpo" if model_type else "grpo"
         target_duration_s = max(1e-6, float(getattr(cfg, "output_video_duration_s", 4.0)))
@@ -693,6 +727,9 @@ def run_grpo_for_prompt(
             )
             print(f"\n✅ Trajectory video saved: {traj_mp4_path}")
             torch.save(traj_video, out_dir / "final_video_trajectory.pt")
+
+    if accelerator is not None:
+        accelerator.wait_for_everyone()
 
     return {
         "last_loss": float(last_loss),

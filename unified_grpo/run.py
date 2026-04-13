@@ -5,13 +5,17 @@ Supports multiple video models via --model-type argument
 """
 
 import argparse
+import builtins
 import json
+import os
 import torch
 import sys
 from pathlib import Path
 from datetime import datetime
+from typing import Any
 
 from unified_grpo.grpo_core import run_grpo_for_prompt, GRPOConfig
+from unified_grpo.adapters.base import get_trainable_module
 from unified_grpo.lora_utils import has_lora, save_lora_weights
 from unified_grpo.utils import WriteLogger
 
@@ -20,6 +24,64 @@ from unified_grpo.utils import WriteLogger
 # - Qwen reward lazy-loads transformers + qwen-vl-utils internally
 from unified_grpo.reward_simple_clip_dino import comprehensive_grpo_reward
 from unified_grpo.create_adapter import create_cogvideox_adapter, create_ltx_adapter
+
+
+def _build_accelerator(args):
+    wants_accelerate = bool(
+        getattr(args, "use_accelerate", False)
+        or getattr(args, "distributed_backend", "none") != "none"
+        or getattr(args, "deepspeed_config", None)
+        or int(os.environ.get("WORLD_SIZE", "1")) > 1
+    )
+    if not wants_accelerate:
+        return None
+
+    try:
+        from accelerate import Accelerator
+        from accelerate.utils import DeepSpeedPlugin
+    except ImportError as exc:
+        raise RuntimeError(
+            "Accelerate is required for distributed/DeepSpeed GRPO runs. Install `accelerate` first."
+        ) from exc
+
+    deepspeed_plugin = None
+    launcher_managed_deepspeed = str(os.environ.get("ACCELERATE_USE_DEEPSPEED", "")).lower() == "true"
+    deepspeed_config = getattr(args, "deepspeed_config", None)
+    if deepspeed_config:
+        deepspeed_path = Path(deepspeed_config).expanduser().resolve()
+        if not deepspeed_path.exists():
+            raise FileNotFoundError(f"DeepSpeed config file not found: {deepspeed_path}")
+        args.deepspeed_config = str(deepspeed_path)
+        if not launcher_managed_deepspeed:
+            deepspeed_plugin = DeepSpeedPlugin(hf_ds_config=str(deepspeed_path))
+
+    accelerator = Accelerator(
+        gradient_accumulation_steps=int(getattr(args, "gradient_accumulation_steps", 1)),
+        mixed_precision=str(getattr(args, "mixed_precision", "bf16")),
+        deepspeed_plugin=deepspeed_plugin,
+    )
+
+    if getattr(args, "distributed_backend", "none") == "deepspeed":
+        from accelerate import DistributedType
+
+        if accelerator.distributed_type != DistributedType.DEEPSPEED:
+            raise RuntimeError(
+                "DeepSpeed backend requested, but Accelerate did not initialize a DeepSpeed engine. "
+                "Launch with `accelerate launch` using a DeepSpeed-enabled config, or pass `--deepspeed-config`."
+            )
+
+    return accelerator
+
+
+def _silence_non_main_prints(accelerator, enabled: bool) -> Any:
+    original_print = builtins.print
+    if accelerator is not None and enabled and not accelerator.is_main_process:
+        builtins.print = lambda *args, **kwargs: None  # type: ignore[assignment]
+    return original_print
+
+
+def _restore_print(original_print: Any) -> None:
+    builtins.print = original_print
 
 def create_adapter(args):
     """Create appropriate adapter based on model type"""
@@ -43,36 +105,44 @@ def create_adapter(args):
         raise ValueError(f"Unknown model type: {model_type}. Choose from: cogvideox, ltx, cosmos, wan, opensora")
 
 
-def _save_model_checkpoint(*, adapter, args, checkpoint_dir: Path) -> None:
+def _save_model_checkpoint(*, adapter, args, checkpoint_dir: Path, accelerator=None) -> None:
+    if accelerator is not None:
+        accelerator.wait_for_everyone()
+        if not accelerator.is_main_process:
+            return
+
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-    target = None
-    pipeline = getattr(adapter, "pipeline", None)
-    if pipeline is not None:
-        target = getattr(pipeline, "transformer", None)
-        if target is None:
-            target = getattr(pipeline, "model", None)
-    if target is None:
-        target = getattr(adapter, "transformer", None)
-    if target is None:
-        raise RuntimeError("Could not locate a trainable model module to checkpoint.")
+    target = get_trainable_module(adapter)
+    unwrapped_target = accelerator.unwrap_model(target) if accelerator is not None else target
 
-    if bool(getattr(args, "use_lora", False)) and has_lora(target):
+    if bool(getattr(args, "use_lora", False)) and has_lora(unwrapped_target):
         lora_dir = checkpoint_dir / "lora_adapter"
-        save_lora_weights(target, str(lora_dir))
+        save_lora_weights(unwrapped_target, str(lora_dir))
         lora_state_path = checkpoint_dir / "lora_state_dict.pt"
         lora_state = {
             name: param.detach().cpu()
-            for name, param in target.named_parameters()
+            for name, param in unwrapped_target.named_parameters()
             if "lora_" in name.lower()
         }
-        torch.save(lora_state, lora_state_path)
+        if accelerator is not None:
+            accelerator.save(lora_state, str(lora_state_path))
+        else:
+            torch.save(lora_state, lora_state_path)
         print(f"✅ LoRA .pt checkpoint saved to: {lora_state_path}")
         checkpoint_type = "lora"
         checkpoint_path = str(lora_dir)
     else:
+        accelerate_state_dir = checkpoint_dir / "accelerate_state"
+        if accelerator is not None:
+            accelerator.save_state(str(accelerate_state_dir))
+            print(f"✅ Accelerator/DeepSpeed state saved to: {accelerate_state_dir}")
         state_path = checkpoint_dir / "model_state_dict.pt"
-        torch.save(target.state_dict(), state_path)
+        state_dict = accelerator.get_state_dict(target) if accelerator is not None else unwrapped_target.state_dict()
+        if accelerator is not None:
+            accelerator.save(state_dict, str(state_path))
+        else:
+            torch.save(state_dict, state_path)
         print(f"✅ Model state_dict saved to: {state_path}")
         checkpoint_type = "state_dict"
         checkpoint_path = str(state_path)
@@ -93,7 +163,9 @@ def _save_model_checkpoint(*, adapter, args, checkpoint_dir: Path) -> None:
         "guidance_scale": float(getattr(args, "guidance_scale", 0.0) or 0.0),
         "checkpoint_type": checkpoint_type,
         "checkpoint_path": checkpoint_path,
-        "checkpoint_pt_path": str(lora_state_path) if bool(getattr(args, "use_lora", False)) and has_lora(target) else checkpoint_path,
+        "checkpoint_pt_path": str(lora_state_path)
+        if bool(getattr(args, "use_lora", False)) and has_lora(unwrapped_target)
+        else checkpoint_path,
         "timestamp": datetime.now().isoformat(),
     }
     (checkpoint_dir / "metadata.json").write_text(json.dumps(meta, indent=2))
@@ -106,10 +178,13 @@ def main():
         epilog="""
 Examples:
   # CogVideoX:
-  python run_unified_grpo.py --model-type cogvideox --model-path THUDM/CogVideoX-5b
+  python -m unified_grpo.run --model-type cogvideox --model-path THUDM/CogVideoX-5b
   
   # LTX-Video:
-  python run_unified_grpo.py --model-type ltx --model-path Lightricks/LTX-Video
+  python -m unified_grpo.run --model-type ltx --model-path Lightricks/LTX-Video
+
+  # 8x A100 DeepSpeed ZeRO-3:
+  accelerate launch --config_file configs/accelerate_zero3_8xa100.yaml -m unified_grpo.run --model-type ltx --distributed-backend deepspeed --deepspeed-config configs/deepspeed_zero3_8xa100.json
   
 """
     )
@@ -130,6 +205,12 @@ Examples:
         "--model-path",
         type=str,
         help="Model identifier/path. For WAN, this can be a local checkpoint directory OR a HuggingFace model id (auto-downloaded)."
+    )
+    parser.add_argument(
+        "--wan-t5-cpu",
+        action="store_true",
+        default=False,
+        help="For WAN only: keep the T5 text encoder on CPU. Default is GPU for faster prompt encoding.",
     )
     parser.add_argument(
         "--cosmos-experiment-name",
@@ -405,8 +486,50 @@ Examples:
         default="./grpo_output",
         help="Output directory. If left as default (./grpo_output), we create a run-specific dir like `wan_grpo_YYYYMMDD_HHMMSS`."
     )
+    parser.add_argument(
+        "--use-accelerate",
+        action="store_true",
+        default=False,
+        help="Initialize training through Hugging Face Accelerate even for single-node runs.",
+    )
+    parser.add_argument(
+        "--distributed-backend",
+        type=str,
+        default="none",
+        choices=["none", "deepspeed"],
+        help="Distributed backend to require. Use 'deepspeed' for a real ZeRO-3 engine.",
+    )
+    parser.add_argument(
+        "--deepspeed-config",
+        type=str,
+        default=None,
+        help="Path to a DeepSpeed JSON config file. When set, Accelerate will bootstrap a DeepSpeed plugin from this file.",
+    )
+    parser.add_argument(
+        "--gradient-accumulation-steps",
+        type=int,
+        default=1,
+        help="Gradient accumulation steps for Accelerate. The current GRPO implementation requires 1.",
+    )
+    parser.add_argument(
+        "--mixed-precision",
+        type=str,
+        default="bf16",
+        choices=["no", "bf16", "fp16"],
+        help="Accelerate mixed precision mode used for distributed training.",
+    )
+    parser.add_argument(
+        "--log-all-ranks",
+        action="store_true",
+        default=False,
+        help="Disable rank-zero-only logging and allow every process to print to stdout.",
+    )
     
     args = parser.parse_args()
+    args.rank_zero_only_logging = not bool(getattr(args, "log_all_ranks", False))
+    delay_accelerator_init = str(getattr(args, "model_type", "")).lower() in {"cogvideox", "ltx"}
+    accelerator = None if delay_accelerator_init else _build_accelerator(args)
+    original_print = _silence_non_main_prints(accelerator, bool(args.rank_zero_only_logging))
     
     # ========================================================================
     # Set model-specific defaults
@@ -458,6 +581,19 @@ Examples:
             print(f"  Model: {args.model_type} ({total_blocks} total blocks)")
             print(f"  Unfreezing: {num_blocks_to_train} blocks (last {args.unfreeze_percentage:.0%})")
             print(f"  Block indices: {args.train_blocks}\n")
+
+    if int(getattr(args, "gradient_accumulation_steps", 1)) != 1:
+        raise ValueError(
+            "Unified GRPO currently requires `--gradient-accumulation-steps 1` so each denoising step performs "
+            "an immediate policy update."
+        )
+
+    if accelerator is not None and getattr(args, "distributed_backend", "none") == "deepspeed":
+        if str(args.reward_backend).lower() == "adaptive_physics":
+            raise ValueError(
+                "DeepSpeed ZeRO-3 is currently implemented only for the main video model fine-tuning path. "
+                "`adaptive_physics` adds an auxiliary trainable reward network, which is intentionally deferred."
+            )
     
     # ========================================================================
     # Display Configuration
@@ -474,6 +610,13 @@ Examples:
     print(f"GRPO steps: {args.num_grpo_steps}")
     print(f"Rollouts: {args.num_rollouts}")
     print(f"Learning rate: {args.lr}")
+    if accelerator is not None:
+        print(
+            f"Distributed: backend={getattr(args, 'distributed_backend', 'none')} | "
+            f"processes={accelerator.num_processes} | mixed_precision={args.mixed_precision}"
+        )
+        if getattr(args, "deepspeed_config", None):
+            print(f"DeepSpeed config: {args.deepspeed_config}")
     if bool(getattr(args, "save_denoising_strip_png", False)):
         print(
             "Denoising strip PNG: ON "
@@ -493,6 +636,9 @@ Examples:
     
     print("Creating adapter...")
     adapter = create_adapter(args)
+    if delay_accelerator_init:
+        accelerator = _build_accelerator(args)
+        original_print = _silence_non_main_prints(accelerator, bool(args.rank_zero_only_logging))
      
     print(f"✅ {args.model_type.upper()} adapter created")
     print(f"  Trainable parameters: {len(adapter.trainable_parameters())}")
@@ -533,7 +679,10 @@ Examples:
         output_dir = Path(f"{args.model_type}_grpo_{timestamp}")
     else:
         output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    if accelerator is None or accelerator.is_main_process:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    if accelerator is not None:
+        accelerator.wait_for_everyone()
     
     # Setup logging to file
     log_file = output_dir / f"training_log_{timestamp}.txt"
@@ -542,10 +691,12 @@ Examples:
     print(f"Output dir: {output_dir}")
     print(f"Prompt: {args.prompt}")
     
-    # Redirect stdout to both console and log file
-    logger = WriteLogger(str(log_file))
-    sys.stdout = logger
-    sys.stderr = logger  # Also capture errors
+    # Redirect stdout to both console and log file on the main process only.
+    logger = None
+    if accelerator is None or accelerator.is_main_process:
+        logger = WriteLogger(str(log_file))
+        sys.stdout = logger
+        sys.stderr = logger  # Also capture errors
     
     print("="*70)
     print(f"UNIFIED GRPO TRAINING - {args.model_type.upper()}")
@@ -570,7 +721,8 @@ Examples:
     if str(args.reward_backend).lower() == "adaptive_physics":
         from unified_grpo.reward_adaptive_physics import AdaptiveRewardWeightNet
 
-        adaptive_weight_net = AdaptiveRewardWeightNet(hidden_dim=int(args.adaptive_physics_hidden_dim)).to(adapter.device())
+        reward_device = accelerator.device if accelerator is not None else adapter.device()
+        adaptive_weight_net = AdaptiveRewardWeightNet(hidden_dim=int(args.adaptive_physics_hidden_dim)).to(reward_device)
         reward_aux_params = [p for p in adaptive_weight_net.parameters() if p.requires_grad]
 
     # Build reward_fn closure based on CLI.
@@ -733,7 +885,7 @@ Examples:
         result = comprehensive_grpo_reward(
             frames=video,
             prompt=prompt,
-            device="cuda",
+            device=str(video.device),
             use_clip=True,
             clip_num_sampled_frames=int(args.clip_num_frames),
             clip_aggregation=str(args.clip_aggregation),
@@ -779,6 +931,7 @@ Examples:
             cfg=grpo_config,
             model_type=args.model_type,
             extra_trainable_parameters=reward_aux_params,
+            accelerator=accelerator,
         )
 
         print("\n" + "="*70)
@@ -795,17 +948,20 @@ Examples:
                 adapter=adapter,
                 args=args,
                 checkpoint_dir=Path(args.save_checkpoint_dir).expanduser().resolve(),
+                accelerator=accelerator,
             )
         print("✅ Done!")
         
     finally:
         # Close logger and restore stdout
-        if 'logger' in locals():
+        if logger is not None:
             logger.close()
             sys.stdout = logger.terminal
             sys.stderr = sys.__stderr__
-        
-        print(f"\n✅ Training complete! Log saved to: {log_file}")
+        _restore_print(original_print)
+
+        if accelerator is None or accelerator.is_main_process:
+            print(f"\n✅ Training complete! Log saved to: {log_file}")
 
 if __name__ == "__main__":
     main()

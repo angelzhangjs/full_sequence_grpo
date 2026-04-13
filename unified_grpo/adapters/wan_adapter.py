@@ -204,6 +204,8 @@ class WanAdapter(VideoGRPOAdapter):
 
         # Exploration noise (only for rollouts, not for gradient step)
         lat_in = latents.detach() if not with_grad else latents
+        param_dtype = getattr(self.pipeline, "param_dtype", torch.bfloat16)
+        lat_in = lat_in.to(dtype=param_dtype)
         
         # WanModel expects a *list* of latents, each shaped [C, F, H, W].
         if lat_in.ndim != 5:
@@ -226,8 +228,6 @@ class WanAdapter(VideoGRPOAdapter):
             seq_len = int(
                 math.ceil((h_lat * w_lat) / (patch_size[1] * patch_size[2]) * f_lat)
             )
-
-        param_dtype = getattr(self.pipeline, "param_dtype", torch.bfloat16)
 
         def _forward(context_list: Any) -> torch.Tensor:
             out_list = model(x_list, t=timestep, context=context_list, seq_len=int(seq_len))

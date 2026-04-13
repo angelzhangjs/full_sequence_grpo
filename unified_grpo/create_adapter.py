@@ -128,19 +128,29 @@ def create_ltx_adapter(args):
     # so we build the pipeline using `ltx_video.inference.create_ltx_video_pipeline`, which is the
     # supported construction path for this vendored implementation.
     import os
+    import importlib.util
+
+    repo_root = Path(__file__).resolve().parent.parent  # .../angel-research
+    ltx_pkg_root = repo_root / "ltx_video"
+    if str(ltx_pkg_root) not in sys.path:
+        sys.path.insert(0, str(ltx_pkg_root))
 
     from huggingface_hub import hf_hub_download  # type: ignore
 
-    # Import the real implementation module. (Avoid `ltx_video/inference.py` wrapper which can
-    # be picked up as `ltx_video.inference` via namespace-package resolution from repo root.)
-    from ltx_video.ltx_video.inference import (  # type: ignore
-        create_ltx_video_pipeline,
-        load_pipeline_config,
-    )
+    # Load the vendored implementation directly from the inner package file to avoid the
+    # top-level `ltx_video/inference.py` wrapper, which otherwise causes a circular import.
+    ltx_impl_path = ltx_pkg_root / "ltx_video" / "inference.py"
+    spec = importlib.util.spec_from_file_location("ltx_video._grpo_inference", ltx_impl_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load LTX inference module from {ltx_impl_path}")
+    ltx_inference = importlib.util.module_from_spec(spec)
+    sys.modules["ltx_video._grpo_inference"] = ltx_inference
+    spec.loader.exec_module(ltx_inference)
+    create_ltx_video_pipeline = ltx_inference.create_ltx_video_pipeline  # type: ignore[attr-defined]
+    load_pipeline_config = ltx_inference.load_pipeline_config  # type: ignore[attr-defined]
     # Use the active LTX adapter implementation.
     from unified_grpo.adapters.ltx import LTXAdapter
     
-    repo_root = Path(__file__).resolve().parent.parent  # .../angel-research
     # Default LTX pipeline config for GRPO runs.
     # User-requested default: 2B 0.9.6 dev checkpoint.
     default_cfg = repo_root / "ltx_video" / "configs" / "ltxv-2b-0.9.6-dev.yaml"
@@ -304,12 +314,26 @@ def create_ltx_adapter(args):
 
 def create_wan_adapter(args):
     """Create Wan2.1 adapter (WanT2V + WanAdapter)"""
+    import os
     import sys 
+    import time
     import math
     import torch
     from pathlib import Path 
     from unified_grpo.adapters.wan_adapter import WanAdapter
     from unified_grpo.lora_utils import apply_lora_to_transformer
+
+    dist_ready = torch.distributed.is_available() and torch.distributed.is_initialized()
+    rank = int(os.environ.get("RANK", getattr(args, "rank", 0)))
+    local_rank = int(
+        os.environ.get(
+            "LOCAL_RANK",
+            getattr(args, "device_id", torch.cuda.current_device() if torch.cuda.is_available() else 0),
+        )
+    )
+
+    def _wan_log(message: str) -> None:
+        print(f"[WAN][rank {rank}] {message}")
     
     # add Wan2.1 to path 
     repo_root = Path(__file__).resolve().parent.parent  # .../angel-research
@@ -345,8 +369,18 @@ def create_wan_adapter(args):
                 "- Or install huggingface_hub: `pip install huggingface_hub`\n"
             ) from e
 
-        print(f"[WAN] Local checkpoint dir not found, downloading from HuggingFace: {model_id}")
-        downloaded = snapshot_download(repo_id=model_id)
+        downloaded: str
+        if dist_ready:
+            if rank == 0:
+                _wan_log(f"Local checkpoint dir not found, downloading from HuggingFace: {model_id}")
+                downloaded = snapshot_download(repo_id=model_id)
+            torch.distributed.barrier()
+            if rank != 0:
+                _wan_log(f"Resolving cached HuggingFace checkpoint after rank-0 download: {model_id}")
+                downloaded = snapshot_download(repo_id=model_id, local_files_only=True)
+        else:
+            _wan_log(f"Local checkpoint dir not found, downloading from HuggingFace: {model_id}")
+            downloaded = snapshot_download(repo_id=model_id)
         ckpt_dir = Path(downloaded)
         if not ckpt_dir.exists():
             raise FileNotFoundError(f"[WAN] snapshot_download returned non-existent path: {str(ckpt_dir)}")
@@ -372,12 +406,14 @@ def create_wan_adapter(args):
     # --------------
     # Build Wan pipeline 
     # --------------
-    device_id = int(getattr(args, "device_id", torch.cuda.current_device() if torch.cuda.is_available() else 0))
-    rank = int(getattr(args, "rank", 0))
+    device_id = local_rank
 
-    # Keep T5 on CPU by default (saves VRAM)
-    t5_cpu = bool(getattr(args, "wan_t5_cpu", True))
+    # Default to GPU text encoding for faster WAN startup on multi-GPU nodes.
+    # Users can opt back into CPU text encoding with `--wan-t5-cpu`.
+    t5_cpu = bool(getattr(args, "wan_t5_cpu", False))
 
+    _wan_log(f"Initializing WanT2V pipeline on device_id={device_id} with t5_cpu={int(t5_cpu)}...")
+    pipeline_start = time.perf_counter()
     pipeline = wan.WanT2V(
         config=wan_config,
         checkpoint_dir=str(ckpt_dir),
@@ -388,11 +424,13 @@ def create_wan_adapter(args):
         use_usp=False,
         t5_cpu=t5_cpu,
     )
+    _wan_log(f"WanT2V pipeline ready in {time.perf_counter() - pipeline_start:.1f}s")
 
     # ----------------------------
     # Optional LoRA on WanModel (pipeline.model.blocks)
     # ----------------------------
     if bool(getattr(args, "use_lora", False)):
+        _wan_log("Applying LoRA to WAN transformer...")
         from unified_grpo.utils import resolve_lora_blocks
 
         model0 = getattr(pipeline, "model", None)
@@ -416,6 +454,7 @@ def create_wan_adapter(args):
             target_modules=["q", "k", "v", "o", "k_img", "v_img"],
             target_blocks=lora_blocks,
         )
+        _wan_log("LoRA application complete")
     # ----------------------------
     # Prompt embeddings (match WanT2V.generate)
     # ----------------------------
@@ -427,16 +466,44 @@ def create_wan_adapter(args):
     if not negative_prompt:
         negative_prompt = str(getattr(pipeline, "sample_neg_prompt", "") or "")
 
+    def _context_list_to_cpu(context_list):
+        return [tensor.detach().cpu() for tensor in context_list]
+
+    def _context_list_to_device(context_list):
+        return [tensor.to(pipeline.device) for tensor in context_list]
+
     # Wan text encoder returns a list of tensors (context list)
-    if not pipeline.t5_cpu:
+    _wan_log("Preparing prompt embeddings with WAN text encoder...")
+    encode_start = time.perf_counter()
+    if dist_ready:
+        payload = [None, None]
+        if rank == 0:
+            _wan_log("Encoding prompt embeddings on rank 0 for broadcast...")
+            if not pipeline.t5_cpu:
+                pipeline.text_encoder.model.to(pipeline.device)
+                prompt_embeds_rank0 = pipeline.text_encoder([prompt], pipeline.device)
+                negative_prompt_embeds_rank0 = pipeline.text_encoder([negative_prompt], pipeline.device)
+            else:
+                prompt_embeds_rank0 = pipeline.text_encoder([prompt], torch.device("cpu"))
+                negative_prompt_embeds_rank0 = pipeline.text_encoder([negative_prompt], torch.device("cpu"))
+            payload = [
+                _context_list_to_cpu(prompt_embeds_rank0),
+                _context_list_to_cpu(negative_prompt_embeds_rank0),
+            ]
+        torch.distributed.broadcast_object_list(payload, src=0)
+        prompt_embeds = _context_list_to_device(payload[0])
+        negative_prompt_embeds = _context_list_to_device(payload[1])
+        _wan_log("Received broadcast prompt embeddings")
+    elif not pipeline.t5_cpu:
         pipeline.text_encoder.model.to(pipeline.device)
         prompt_embeds = pipeline.text_encoder([prompt], pipeline.device)
         negative_prompt_embeds = pipeline.text_encoder([negative_prompt], pipeline.device)
     else:
         prompt_embeds = pipeline.text_encoder([prompt], torch.device("cpu"))
         negative_prompt_embeds = pipeline.text_encoder([negative_prompt], torch.device("cpu"))
-        prompt_embeds = [t.to(pipeline.device) for t in prompt_embeds]
-        negative_prompt_embeds = [t.to(pipeline.device) for t in negative_prompt_embeds]
+        prompt_embeds = _context_list_to_device(prompt_embeds)
+        negative_prompt_embeds = _context_list_to_device(negative_prompt_embeds)
+    _wan_log(f"Prompt embeddings ready in {time.perf_counter() - encode_start:.1f}s")
 
     # ----------------------------
     # Training block selection
