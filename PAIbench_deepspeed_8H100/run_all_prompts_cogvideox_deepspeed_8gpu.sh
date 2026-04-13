@@ -23,7 +23,7 @@ KEYFRAME_STRIP_SH="${REPO_ROOT}/scripts/save_prompt_keyframe_strips.sh"
 SAVE_DENOISING_STRIP="${SAVE_DENOISING_STRIP:-1}"
 DENOISING_SNAPSHOT_STRIDE="${DENOISING_SNAPSHOT_STRIDE:-5}"
 
-PROMPTS_FILE="${PROMPTS_FILE:-pai_bench_text_only/cosmos_predict2_bench_video_prompts.txt}"
+PROMPTS_FILE="${PROMPTS_FILE:-/home/ubuntu/angel-neurips/full_sequence_grpo/cosmos_predict2_bench_video_prompts.txt}"
 
 MODEL_TYPE="${MODEL_TYPE:-cogvideox}"
 MODEL_PATH="${MODEL_PATH:-THUDM/CogVideoX-2b}"

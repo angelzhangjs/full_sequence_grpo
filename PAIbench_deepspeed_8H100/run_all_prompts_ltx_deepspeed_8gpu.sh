@@ -24,7 +24,7 @@ SAVE_DENOISING_STRIP="${SAVE_DENOISING_STRIP:-0}"
 SAVE_CHECKPOINTS="${SAVE_CHECKPOINTS:-1}"
 RUN_BASELINE="${RUN_BASELINE:-0}"
 
-PROMPTS_FILE="${PROMPTS_FILE:-pai_bench_text_only/cosmos_predict2_bench_video_prompts.txt}"
+PROMPTS_FILE="${PROMPTS_FILE:-/home/ubuntu/angel-neurips/full_sequence_grpo/cosmos_predict2_bench_video_prompts.txt}"
 
 MODEL_TYPE="${MODEL_TYPE:-ltx}"
 MODEL_PATH="${MODEL_PATH:-Lightricks/LTX-Video}"

@@ -14,7 +14,7 @@ export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:T
 export PYTHONNOUSERSITE=1
 export TOKENIZERS_PARALLELISM="${TOKENIZERS_PARALLELISM:-false}"
 
-PROMPTS_FILE="${PROMPTS_FILE:-pai_bench_text_only/cosmos_predict2_bench_video_prompts.txt}"
+PROMPTS_FILE="${PROMPTS_FILE:-/home/ubuntu/angel-neurips/full_sequence_grpo/cosmos_predict2_bench_video_prompts.txt}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-${REPO_ROOT}/cogvideox_pai_baseline}"
 VIDEOS_DIR="${OUTPUT_ROOT}/videos"
 RUNS_DIR="${OUTPUT_ROOT}/runs"
