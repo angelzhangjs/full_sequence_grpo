@@ -12,6 +12,7 @@ dependencies = [
     "diffusers>=0.28.0",
     "transformers>=4.40.0",
     "accelerate>=0.20.0",
+    "deepspeed",
     "peft>=0.7.0",  # For LoRA training
     "clip",         # For text-video alignment rewards
     "timm",         # For DINO (object tracking)

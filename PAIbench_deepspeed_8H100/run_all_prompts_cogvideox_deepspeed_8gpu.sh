@@ -1,8 +1,8 @@
 #!/bin/bash
-# Batch processing: Run GRPO for all prompts in a single prompt file using LTX
+# Batch processing: Run GRPO for all prompts in a single prompt file using CogVideoX
 # with Accelerate + DeepSpeed ZeRO-3 over 8 GPUs.
 #
-# This intentionally leaves `run_all_prompts_ltx.sh` untouched.
+# This intentionally leaves `run_all_prompts_cogvideox.sh` untouched.
 
 set -euo pipefail
 
@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${SCRIPT_DIR}"
 cd "${REPO_ROOT}"
 
-export PYTHONPATH="${REPO_ROOT}/ltx_video:${REPO_ROOT}:${PYTHONPATH:-}"
+export PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 export PYTHONNOUSERSITE=1
 export TOKENIZERS_PARALLELISM="${TOKENIZERS_PARALLELISM:-false}"
@@ -18,26 +18,24 @@ export TOKENIZERS_PARALLELISM="${TOKENIZERS_PARALLELISM:-false}"
 SAVE_SNAPSHOTS="${SAVE_SNAPSHOTS:-1}"
 VIDEO_SNAPSHOT_SH="${REPO_ROOT}/scripts/video_to_snapshot.sh"
 SAVE_KEYFRAME_STRIP="${SAVE_KEYFRAME_STRIP:-1}"
-KEYFRAME_STRIP_FRAMES="${KEYFRAME_STRIP_FRAMES:-5}"
+KEYFRAME_STRIP_FRAMES="${KEYFRAME_STRIP_FRAMES:-2}"
 KEYFRAME_STRIP_SH="${REPO_ROOT}/scripts/save_prompt_keyframe_strips.sh"
-SAVE_DENOISING_STRIP="${SAVE_DENOISING_STRIP:-0}"
-SAVE_CHECKPOINTS="${SAVE_CHECKPOINTS:-1}"
-RUN_BASELINE="${RUN_BASELINE:-0}"
+SAVE_DENOISING_STRIP="${SAVE_DENOISING_STRIP:-1}"
+DENOISING_SNAPSHOT_STRIDE="${DENOISING_SNAPSHOT_STRIDE:-5}"
 
-PROMPTS_FILE="${PROMPTS_FILE:-total.txt}"
+PROMPTS_FILE="${PROMPTS_FILE:-pai_bench_text_only/cosmos_predict2_bench_video_prompts.txt}"
 
-MODEL_TYPE="${MODEL_TYPE:-ltx}"
-MODEL_PATH="${MODEL_PATH:-Lightricks/LTX-Video}"
+MODEL_TYPE="${MODEL_TYPE:-cogvideox}"
+MODEL_PATH="${MODEL_PATH:-THUDM/CogVideoX-2b}"
+HEIGHT="${HEIGHT:-480}"
+WIDTH="${WIDTH:-720}"
+NUM_FRAMES="${NUM_FRAMES:-32}"
+GUIDANCE_SCALE="${GUIDANCE_SCALE:-7.5}"
 NUM_INFERENCE_STEPS="${NUM_INFERENCE_STEPS:-50}"
 NUM_GRPO_STEPS="${NUM_GRPO_STEPS:-15}"
 NUM_ROLLOUTS="${NUM_ROLLOUTS:-5}"
 LR="${LR:-1e-4}"
 SEED="${SEED:-42}"
-HEIGHT="${HEIGHT:-480}"
-WIDTH="${WIDTH:-720}"
-NUM_FRAMES="${NUM_FRAMES:-32}"
-FPS="${FPS:-8}"
-GUIDANCE_SCALE="${GUIDANCE_SCALE:-7.5}"
 UNFREEZE_PERCENTAGE="${UNFREEZE_PERCENTAGE:-0.20}"
 USE_LORA="${USE_LORA:-1}"
 LORA_BLOCKS="${LORA_BLOCKS:-last}"
@@ -45,24 +43,29 @@ LORA_RANK="${LORA_RANK:-4}"
 LORA_ALPHA="${LORA_ALPHA:-8}"
 REWARD_BACKEND="${REWARD_BACKEND:-image_clip}"
 REWARD_DEBUG="${REWARD_DEBUG:-0}"
-NEGATIVE_PROMPT="${NEGATIVE_PROMPT:-}"
-LTX_PIPELINE_CONFIG="${LTX_PIPELINE_CONFIG:-${REPO_ROOT}/ltx_video/configs/ltxv-2b-0.9.6-dev.yaml}"
+CLIP_NUM_FRAMES="${CLIP_NUM_FRAMES:-0}"
+CLIP_AGGREGATION="${CLIP_AGGREGATION:-video_mean_pool}"
+ADAPTIVE_PHYSICS_HIDDEN_DIM="${ADAPTIVE_PHYSICS_HIDDEN_DIM:-32}"
+PHYSICS_CATEGORY_OVERRIDE="${PHYSICS_CATEGORY_OVERRIDE:-}"
+PHYSICS_HANDCRAFTED_W_MOTION="${PHYSICS_HANDCRAFTED_W_MOTION:-0.35}"
+PHYSICS_HANDCRAFTED_W_CATEGORY="${PHYSICS_HANDCRAFTED_W_CATEGORY:-0.65}"
+RUN_BASELINE="${RUN_BASELINE:-0}"
 
 NUM_GPUS="${NUM_GPUS:-8}"
 ACCELERATE_CONFIG="${ACCELERATE_CONFIG:-${REPO_ROOT}/configs/accelerate_zero3_8xa100.yaml}"
 DEEPSPEED_CONFIG="${DEEPSPEED_CONFIG:-${REPO_ROOT}/configs/deepspeed_zero3_8xa100.json}"
-MAIN_PROCESS_PORT="${MAIN_PROCESS_PORT:-29521}"
+MAIN_PROCESS_PORT="${MAIN_PROCESS_PORT:-29511}"
 
 echo "======================================================================"
-echo "BATCH GRPO TRAINING - LTX - DEEPSPEED ZERO-3 - ${NUM_GPUS} GPU"
+echo "BATCH GRPO TRAINING - COGVIDEOX - DEEPSPEED ZERO-3 - ${NUM_GPUS} GPU"
 echo "======================================================================"
 echo "Prompts: ${PROMPTS_FILE}"
 echo "Accelerate config: ${ACCELERATE_CONFIG}"
 echo "DeepSpeed config: ${DEEPSPEED_CONFIG}"
 echo ""
 
-if [[ "$MODEL_TYPE" != "ltx" ]]; then
-    echo "ERROR: MODEL_TYPE='$MODEL_TYPE' is not supported by this script. Use MODEL_TYPE=ltx." >&2
+if [[ "$MODEL_TYPE" != "cogvideox" ]]; then
+    echo "ERROR: MODEL_TYPE='$MODEL_TYPE' is not supported by this script. Use MODEL_TYPE=cogvideox." >&2
     exit 2
 fi
 
@@ -85,12 +88,36 @@ if [[ ! -f "$DEEPSPEED_CONFIG" ]]; then
     exit 1
 fi
 
+HEADER_LINE="$(python3 - <<'PY' "${PROMPTS_FILE}"
+import sys
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    print(f.readline().rstrip("\n"))
+PY
+)"
+TSV_MODE=0
+if [[ "${HEADER_LINE}" == $'video_id\tprompt_en' ]]; then
+    TSV_MODE=1
+fi
+
 PROMPT_FILES=("$PROMPTS_FILE")
 TOTAL_FILES=1
-TOTAL_PROMPTS_IN_FILE=$(grep -cve '^[[:space:]]*$' "$PROMPTS_FILE" || true)
+if [[ "${TSV_MODE}" == "1" ]]; then
+    TOTAL_PROMPTS_IN_FILE=$(python3 - <<'PY' "${PROMPTS_FILE}"
+import csv, sys
+with open(sys.argv[1], newline="", encoding="utf-8") as f:
+    reader = csv.DictReader(f, delimiter="\t")
+    print(sum(1 for _ in reader))
+PY
+)
+else
+    TOTAL_PROMPTS_IN_FILE=$(grep -cve '^[[:space:]]*$' "$PROMPTS_FILE" || true)
+fi
 
 echo "Using prompt file: $(basename "$PROMPTS_FILE")"
 echo "  - prompts: $TOTAL_PROMPTS_IN_FILE"
+if [[ "${TSV_MODE}" == "1" ]]; then
+    echo "  - mode: pai_tsv (video_id + prompt_en)"
+fi
 echo ""
 
 AUTO_YES="${AUTO_YES:-0}"
@@ -104,11 +131,13 @@ else
     fi
 fi
 
-MODEL_NAME="${MODEL_PATH##*/}"
-MODEL_NAME="${MODEL_NAME//\//-}"
-BATCH_TIMESTEP=$(date +%Y%m%d_%H%M%S)
-BATCH_DIR="./${MODEL_NAME}_grpo_ds_${BATCH_TIMESTEP}"
+MODEL_NAME="${MODEL_TYPE}"
+BATCH_DIR="./${MODEL_NAME}_pai_grpo"
 mkdir -p "$BATCH_DIR"
+VIDEOS_DIR="${BATCH_DIR}/videos"
+if [[ "${TSV_MODE}" == "1" ]]; then
+    mkdir -p "${VIDEOS_DIR}"
+fi
 
 echo ""
 echo "Batch output: $BATCH_DIR"
@@ -125,19 +154,42 @@ for PROMPTS_FILE in "${PROMPT_FILES[@]}"; do
     OUTPUT_TOP_REL="${BATCH_DIR}/${FILE_BASE}_${TIMESTEP}"
     mkdir -p "$OUTPUT_TOP_REL"
 
-    TOTAL_PROMPTS="$(grep -cve '^[[:space:]]*$' "${PROMPTS_FILE}" || true)"
+    if [[ "${TSV_MODE}" == "1" ]]; then
+        TOTAL_PROMPTS=$(python3 - <<'PY' "${PROMPTS_FILE}"
+import csv, sys
+with open(sys.argv[1], newline="", encoding="utf-8") as f:
+    reader = csv.DictReader(f, delimiter="\t")
+    print(sum(1 for _ in reader))
+PY
+)
+    else
+        TOTAL_PROMPTS="$(grep -cve '^[[:space:]]*$' "${PROMPTS_FILE}" || true)"
+    fi
     echo ""
     echo "######################################################################"
     echo "FILE $FILE_INDEX/$TOTAL_FILES: $PROMPTS_FILE -> $OUTPUT_TOP_REL"
     echo "######################################################################"
     echo ""
 
-    LINE_NUM=0
     PROMPT_IDX=0
-    while IFS= read -r PROMPT || [ -n "$PROMPT" ]; do
-        LINE_NUM=$((LINE_NUM + 1))
-        if [[ -z "${PROMPT//[[:space:]]/}" ]]; then
-            continue
+    while IFS=$'\t' read -r COL1 COL2 _REST || [[ -n "${COL1:-}" ]]; do
+        if [[ "${TSV_MODE}" == "1" ]]; then
+            VIDEO_ID="${COL1:-}"
+            PROMPT="${COL2:-}"
+            if [[ "${VIDEO_ID}" == "video_id" ]]; then
+                continue
+            fi
+            if [[ -z "${VIDEO_ID//[[:space:]]/}" ]]; then
+                continue
+            fi
+            SAFE_VIDEO_ID="$(printf '%s' "${VIDEO_ID}" | tr '/:' '__')"
+        else
+            PROMPT="${COL1:-}"
+            if [[ -z "${PROMPT//[[:space:]]/}" ]]; then
+                continue
+            fi
+            VIDEO_ID=""
+            SAFE_VIDEO_ID=""
         fi
 
         PROMPT_IDX=$((PROMPT_IDX + 1))
@@ -145,12 +197,19 @@ for PROMPTS_FILE in "${PROMPT_FILES[@]}"; do
         echo "======================================================================"
         echo "Prompt $PROMPT_IDX/$TOTAL_PROMPTS (file: $FILE_BASE)"
         echo "======================================================================"
+        if [[ "${TSV_MODE}" == "1" ]]; then
+            echo "video_id: ${VIDEO_ID}"
+        fi
         echo "$PROMPT"
         echo ""
 
-        PROMPT_SHORT=$(echo "$PROMPT" | head -c 50 | tr -cd '[:alnum:] ' | tr ' ' '-')
-        PROMPT_ID="p$(printf '%03d' $PROMPT_IDX)"
-        OUTPUT_DIR_REL="${OUTPUT_TOP_REL}/${PROMPT_ID}_${PROMPT_SHORT}"
+        if [[ "${TSV_MODE}" == "1" ]]; then
+            OUTPUT_DIR_REL="${OUTPUT_TOP_REL}/${SAFE_VIDEO_ID}"
+        else
+            PROMPT_SHORT=$(echo "$PROMPT" | head -c 50 | tr -cd '[:alnum:] ' | tr ' ' '-')
+            PROMPT_ID="p$(printf '%03d' $PROMPT_IDX)"
+            OUTPUT_DIR_REL="${OUTPUT_TOP_REL}/${PROMPT_ID}_${PROMPT_SHORT}"
+        fi
         OUTPUT_DIR="$(python3 - "$OUTPUT_DIR_REL" <<'PY'
 import os, sys
 print(os.path.abspath(sys.argv[1]))
@@ -158,24 +217,27 @@ PY
 )"
         mkdir -p "$OUTPUT_DIR"
         echo "$PROMPT" > "$OUTPUT_DIR/prompt.txt"
+        if [[ "${TSV_MODE}" == "1" ]]; then
+            echo "$VIDEO_ID" > "$OUTPUT_DIR/video_id.txt"
+        fi
 
         if [[ "${RUN_BASELINE}" == "1" ]]; then
-            echo "Step 1/2: Generating baseline video (LTX inference.py)..."
+            echo "Step 1/2: Generating baseline..."
             mkdir -p "$OUTPUT_DIR/baseline"
-
-            PROMPT="$PROMPT" \
-            OUTPUT_DIR="$OUTPUT_DIR/baseline" \
-            SEED="$SEED" \
-            HEIGHT="$HEIGHT" \
-            WIDTH="$WIDTH" \
-            NUM_FRAMES="$NUM_FRAMES" \
-            FPS="$FPS" \
-            NEGATIVE_PROMPT="$NEGATIVE_PROMPT" \
-            LTX_PIPELINE_CONFIG="$LTX_PIPELINE_CONFIG" \
-            bash "${REPO_ROOT}/unified_grpo/baseline/ltx_baseline.sh" || {
-                echo "WARNING: Baseline failed for prompt $PROMPT_IDX, continuing to GRPO..."
-            }
-
+            pushd CogVideo >/dev/null
+            python inference/cli_demo.py \
+                --prompt "$PROMPT" \
+                --model_path "$MODEL_PATH" \
+                --generate_type "t2v" \
+                --num_frames "$NUM_FRAMES" \
+                --fps 8 \
+                --guidance_scale "$GUIDANCE_SCALE" \
+                --num_inference_steps "$NUM_INFERENCE_STEPS" \
+                --seed "$SEED" \
+                --output_path "../$OUTPUT_DIR/baseline/baseline.mp4" || {
+                    echo "WARNING: Baseline failed for prompt $PROMPT_IDX, continuing to GRPO..."
+                }
+            popd >/dev/null
             if [[ -f "$OUTPUT_DIR/baseline/baseline.mp4" && "${SAVE_SNAPSHOTS}" == "1" && -f "${VIDEO_SNAPSHOT_SH}" ]]; then
                 bash "${VIDEO_SNAPSHOT_SH}" "$OUTPUT_DIR/baseline/baseline.mp4" || true
             fi
@@ -204,7 +266,6 @@ PY
             --width "$WIDTH"
             --num-frames "$NUM_FRAMES"
             --guidance-scale "$GUIDANCE_SCALE"
-            --negative-prompt "$NEGATIVE_PROMPT"
             --num-inference-steps "$NUM_INFERENCE_STEPS"
             --num-grpo-steps "$NUM_GRPO_STEPS"
             --num-rollouts "$NUM_ROLLOUTS"
@@ -212,21 +273,28 @@ PY
             --seed "$SEED"
             --unfreeze-percentage "$UNFREEZE_PERCENTAGE"
             --output-dir "$OUTPUT_DIR/grpo"
+            --clip-num-frames "$CLIP_NUM_FRAMES"
+            --clip-aggregation "$CLIP_AGGREGATION"
+            --adaptive-physics-hidden-dim "$ADAPTIVE_PHYSICS_HIDDEN_DIM"
+            --physics-handcrafted-w-motion "$PHYSICS_HANDCRAFTED_W_MOTION"
+            --physics-handcrafted-w-category "$PHYSICS_HANDCRAFTED_W_CATEGORY"
         )
-        if [[ "${SAVE_CHECKPOINTS}" == "1" ]]; then
-            cmd+=(--save-checkpoint-dir "$OUTPUT_DIR/grpo/checkpoint")
+
+        if [[ "${REWARD_DEBUG}" == "1" || "${REWARD_DEBUG}" == "true" ]]; then
+            cmd+=(--reward-debug)
+        fi
+        if [[ -n "${PHYSICS_CATEGORY_OVERRIDE}" ]]; then
+            cmd+=(--physics-category-override "$PHYSICS_CATEGORY_OVERRIDE")
         fi
         if [[ "$USE_LORA" == "1" ]]; then
             cmd+=(--use-lora --lora-rank "$LORA_RANK" --lora-alpha "$LORA_ALPHA")
             [[ -n "$LORA_BLOCKS" ]] && cmd+=(--lora-blocks "$LORA_BLOCKS")
         fi
-        if [[ "${REWARD_DEBUG}" == "1" || "${REWARD_DEBUG}" == "true" ]]; then
-            cmd+=(--reward-debug)
-        fi
         if [[ "${SAVE_DENOISING_STRIP}" == "1" ]]; then
             cmd+=(
                 --save-denoising-strip-png
                 --save-denoising-step-snapshots
+                --denoising-step-snapshot-stride "$DENOISING_SNAPSHOT_STRIDE"
             )
         fi
 
@@ -236,6 +304,14 @@ PY
         }
 
         echo "GRPO complete for prompt $PROMPT_IDX"
+        if [[ "${TSV_MODE}" == "1" ]]; then
+            SRC_VIDEO="$OUTPUT_DIR/grpo/cogvideox_grpo.mp4"
+            if [[ -f "$SRC_VIDEO" ]]; then
+                cp -f "$SRC_VIDEO" "${VIDEOS_DIR}/${VIDEO_ID}__${SEED}.mp4"
+            else
+                echo "WARNING: Expected final video not found: $SRC_VIDEO"
+            fi
+        fi
         if [[ "${SAVE_SNAPSHOTS}" == "1" && -f "${VIDEO_SNAPSHOT_SH}" ]]; then
             for v in "$OUTPUT_DIR/grpo"/*_grpo.mp4; do
                 [[ -f "$v" ]] || continue

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Protocol
+from typing import Any, Dict, Optional, Protocol, Tuple
 
 import torch
+import torch.nn as nn
 @dataclass
 class StepContext:
     """Context and input for one denoising step."""
@@ -75,4 +76,57 @@ class VideoGRPOAdapter(Protocol):
 
     def extra_log_state(self) -> Dict[str, Any]:
         return {}
+
+
+def resolve_trainable_module(adapter: VideoGRPOAdapter) -> Tuple[str, nn.Module]:
+    """
+    Locate the adapter's primary trainable module.
+
+    This centralizes the backend-specific ownership differences:
+    - Diffusers pipelines usually expose `pipeline.transformer`
+    - WAN exposes `pipeline.model`
+    - Cosmos keeps the trainable network at `model.net` and mirrors it on `adapter.transformer`
+    """
+    candidates = [
+        ("pipeline.transformer", getattr(getattr(adapter, "pipeline", None), "transformer", None)),
+        ("pipeline.model", getattr(getattr(adapter, "pipeline", None), "model", None)),
+        ("model.net", getattr(getattr(adapter, "model", None), "net", None)),
+        ("adapter.transformer", getattr(adapter, "transformer", None)),
+    ]
+    for path, module in candidates:
+        if isinstance(module, nn.Module):
+            return path, module
+    raise RuntimeError(
+        f"Could not locate a trainable module for adapter '{getattr(adapter, 'name', type(adapter).__name__)}'."
+    )
+
+
+def get_trainable_module(adapter: VideoGRPOAdapter) -> nn.Module:
+    _, module = resolve_trainable_module(adapter)
+    return module
+
+
+def set_trainable_module(adapter: VideoGRPOAdapter, module: nn.Module) -> str:
+    """
+    Update all known references that point at the adapter's trainable module.
+
+    The return value is the canonical path that originally identified the module.
+    """
+    resolved_path, _ = resolve_trainable_module(adapter)
+
+    pipeline = getattr(adapter, "pipeline", None)
+    if pipeline is not None:
+        if getattr(pipeline, "transformer", None) is not None:
+            pipeline.transformer = module
+        if getattr(pipeline, "model", None) is not None:
+            pipeline.model = module
+
+    model = getattr(adapter, "model", None)
+    if model is not None and getattr(model, "net", None) is not None:
+        model.net = module
+
+    if getattr(adapter, "transformer", None) is not None:
+        setattr(adapter, "transformer", module)
+
+    return resolved_path
 

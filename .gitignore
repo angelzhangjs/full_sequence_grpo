@@ -311,6 +311,15 @@ __pycache__/
 .nfs*
 setup/Anaconda3-2024.02-1-Linux-x86_64.sh
 batch_grpo_20260215_052728/
+# Generated batch-run output roots
+*_grpo_ds_*/
+*_pai_grpo/
+*_baseline/
+*_pai_baseline/
+CogVideoX-2b_grpo_ds_*/
+LTX-Video_grpo_ds_*/
+Wan2.1-T2V-1.3B_grpo_ds_*/
+Miniconda3-latest-Linux-x86_64.sh
 # Large video / media (batch experiments)
 *.mp4
 *.avi

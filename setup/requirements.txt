@@ -14,6 +14,7 @@ triton==3.5.1
 # Diffusion & Video Generation
 diffusers==0.36.0
 accelerate==1.12.0
+deepspeed
 transformers>=4.40.0
 
 # LTX-Video

@@ -16,7 +16,7 @@ SAVE_SNAPSHOTS="${SAVE_SNAPSHOTS:-1}"
 VIDEO_SNAPSHOT_SH="${REPO_ROOT}/scripts/video_to_snapshot.sh"
 # Two PNG strips per prompt (baseline vs GRPO), K frames each (aligned timestamps).
 SAVE_KEYFRAME_STRIP="${SAVE_KEYFRAME_STRIP:-1}"
-KEYFRAME_STRIP_FRAMES="${KEYFRAME_STRIP_FRAMES:-2}"
+KEYFRAME_STRIP_FRAMES="${KEYFRAME_STRIP_FRAMES:-6}"
 KEYFRAME_STRIP_SH="${REPO_ROOT}/scripts/save_prompt_keyframe_strips.sh"
 # Enable denoising trajectory strip + step snapshots by default for WAN.
 SAVE_DENOISING_STRIP="${SAVE_DENOISING_STRIP:-1}"
@@ -24,7 +24,7 @@ DENOISING_SNAPSHOT_STRIDE="${DENOISING_SNAPSHOT_STRIDE:-5}"
 TARGET_DURATION_S="${TARGET_DURATION_S:-4}"
 
 # Single prompt file (one prompt per line). Default: New Year physics prompt set.
-PROMPTS_FILE="${PROMPTS_FILE:-origin_grpo/experiment_prompts.txt}"
+PROMPTS_FILE="${PROMPTS_FILE:-origin_grpo/total.txt}"
 
 echo "======================================================================"
 echo "BATCH GRPO TRAINING - WAN2.1 - PROMPTS FROM ${PROMPTS_FILE}"

@@ -33,6 +33,10 @@ Optional:
   --train-blocks STR        Comma-separated block indices (default: auto)
   --unfreeze-percentage NUM Percentage of blocks to unfreeze (0.0-1.0, default: 0.25)
   --output-dir PATH         Output directory (default: ./grpo_output)
+  --use-deepspeed          Launch with Accelerate + DeepSpeed ZeRO-3
+  --accelerate-config PATH Accelerate YAML config (default: configs/accelerate_zero3_8xa100.yaml)
+  --deepspeed-config PATH  DeepSpeed JSON config (default: configs/deepspeed_zero3_8xa100.json)
+  --mixed-precision MODE   Accelerate mixed precision: no, bf16, fp16 (default: bf16)
   
   LoRA Options (recommended for 40GB GPU!):
   --use-lora                Enable LoRA training (default: disabled)
@@ -88,6 +92,10 @@ USE_LORA=""
 LORA_RANK=16
 LORA_ALPHA=32
 LORA_BLOCKS=""
+USE_DEEPSPEED=""
+ACCELERATE_CONFIG="configs/accelerate_zero3_8xa100.yaml"
+DEEPSPEED_CONFIG="configs/deepspeed_zero3_8xa100.json"
+MIXED_PRECISION="bf16"
 
 # Parse
 while [[ $# -gt 0 ]]; do
@@ -168,6 +176,22 @@ while [[ $# -gt 0 ]]; do
             LORA_BLOCKS="$2"
             shift 2
             ;;
+        --use-deepspeed)
+            USE_DEEPSPEED="true"
+            shift 1
+            ;;
+        --accelerate-config)
+            ACCELERATE_CONFIG="$2"
+            shift 2
+            ;;
+        --deepspeed-config)
+            DEEPSPEED_CONFIG="$2"
+            shift 2
+            ;;
+        --mixed-precision)
+            MIXED_PRECISION="$2"
+            shift 2
+            ;;
         -h|--help)
             show_help
             exit 0
@@ -192,7 +216,13 @@ fi
 # Build Python Command
 # ============================================================================
 
-CMD="python unified_grpo/run_unified_grpo.py \
+LAUNCHER="python"
+ENTRYPOINT="-m unified_grpo.run"
+if [[ "$USE_DEEPSPEED" == "true" ]]; then
+    LAUNCHER="accelerate launch --config_file $ACCELERATE_CONFIG"
+fi
+
+CMD="$LAUNCHER $ENTRYPOINT \
     --model-type $MODEL_TYPE \
     --prompt \"$PROMPT\" \
     --height $HEIGHT \
@@ -205,6 +235,10 @@ CMD="python unified_grpo/run_unified_grpo.py \
     --lr $LR \
     --seed $SEED \
     --output-dir $OUTPUT_DIR"
+
+if [[ "$USE_DEEPSPEED" == "true" ]]; then
+    CMD="$CMD --use-accelerate --distributed-backend deepspeed --deepspeed-config $DEEPSPEED_CONFIG --mixed-precision $MIXED_PRECISION"
+fi
 
 # Add optional arguments
 if [[ -n "$MODEL_PATH" ]]; then
@@ -240,6 +274,12 @@ echo "  GRPO Steps: $NUM_GRPO_STEPS"
 echo "  Rollouts: $NUM_ROLLOUTS"
 echo "  Learning Rate: $LR"
 echo "  Seed: $SEED"
+if [[ "$USE_DEEPSPEED" == "true" ]]; then
+    echo "  DeepSpeed: Enabled"
+    echo "    Accelerate config: $ACCELERATE_CONFIG"
+    echo "    DeepSpeed config: $DEEPSPEED_CONFIG"
+    echo "    Mixed precision: $MIXED_PRECISION"
+fi
 
 # Display LoRA settings
 if [[ "$USE_LORA" == "true" ]]; then
